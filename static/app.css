@@ -697,3 +697,6 @@ pre {
     padding: 16px;
   }
 }
+/* Once a tub is selected, keep the capture controls above the mobile navigation. */
+.capture:has(.tub-banner) > h1,
+.capture:has(.tub-banner) > .eyebrow { display: none; }
