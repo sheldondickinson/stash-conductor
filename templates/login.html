@@ -1,0 +1,43 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width,initial-scale=1" />
+    <title>Sign in · Stash</title><link rel="icon" href="/static/brand/favicon.ico">
+    <link rel="stylesheet" href="/static/app.css" />
+  </head>
+  <body>
+    <main class="login">
+      <img
+        class="wordmark"
+        src="/static/brand/stash-conductor-logo-transparent.png"
+        alt="Stash Conductor"
+      />
+      <h1>A place for everything.<br />Even the mystery bits.</h1>
+      <p>Sign in to your shared inventory.</p>
+      <form method="post">
+        {% csrf_token %}<input
+          type="hidden"
+          name="next"
+          value="{{ next }}"
+        /><label
+          >Username<input
+            name="username"
+            autocomplete="username"
+            required /></label
+        ><label
+          >Password<input
+            name="password"
+            type="password"
+            autocomplete="current-password"
+            required
+        /></label>
+        <p role="alert">{{ error }}</p>
+        <button class="primary">Sign in</button>
+      </form>
+      <p class="muted">
+        Need access or a password reset? Ask your Stash owner.
+      </p>
+    </main>
+  </body>
+</html>

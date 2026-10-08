@@ -1,0 +1,15 @@
+**
+!requirements.txt
+!manage.py
+!stash/
+!stash/**
+!inventory/
+!inventory/**
+!static/
+!static/**
+!templates/
+!templates/**
+!scripts/
+!scripts/**
+**/__pycache__
+**/*.pyc

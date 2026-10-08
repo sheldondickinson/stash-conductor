@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta
+      name="viewport"
+      content="width=device-width,initial-scale=1,viewport-fit=cover"
+    />
+    <meta name="theme-color" content="#172B32" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="Stash" />
+    <title>Stash Conductor</title>
+    <link rel="manifest" href="/static/manifest.webmanifest" />
+    <link rel="icon" href="/static/brand/favicon.ico" />
+    <link rel="apple-touch-icon" href="/static/brand/icon-180.png" />
+    <link rel="stylesheet" href="/static/app.css" />
+    <script src="/static/vendor/jsQR.js" defer></script>
+    <script src="/static/app.js" defer></script>
+  </head>
+  <body>
+    <a href="#main" class="skip">Skip to content</a>
+    <header class="top">
+      <a href="/" class="brand"
+        ><img src="/static/brand/icon-192.png" alt="" /><span
+          >Stash<span class="brand-small">CONDUCTOR</span></span
+        ></a
+      >
+      <div class="top-actions">
+        <button id="scan" class="secondary">▣ Scan tub</button
+        ><button id="settings" class="icon-button" aria-label="Settings">
+          ☷
+        </button>
+      </div>
+    </header>
+    <main id="main">
+      <div id="notice" role="status" aria-live="polite"></div>
+      <section id="view" aria-busy="true"><p>Opening your stash…</p></section>
+    </main>
+    <nav class="bottom" aria-label="Main">
+      <button data-tab="find" class="active">⌕<span>Find</span></button
+      ><button data-tab="add">＋<span>Add</span></button
+      ><button data-tab="containers">▤<span>Containers</span></button>
+    </nav>
+    <dialog id="dialog">
+      <button id="close-dialog" class="close" aria-label="Close">×</button>
+      <div id="dialog-content"></div>
+    </dialog>
+    <div id="offline" hidden>Offline · drafts stay on this device</div>
+  </body>
+</html>

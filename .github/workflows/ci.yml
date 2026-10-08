@@ -1,0 +1,19 @@
+name: Verify
+on: [push, pull_request]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    env:
+      SECRET_KEY: isolated-ci-only-not-a-production-secret
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - run: python manage.py check && python manage.py makemigrations --check --dry-run && python manage.py test
+      - run: node --check static/app.js && node --check static/sw.js
+      - run: docker build -t stash-conductor:ci .
+      - run: python scripts/check_public.py

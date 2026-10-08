@@ -1,0 +1,13 @@
+/* Starting light-theme tokens. Validate accessible component combinations. */
+:root {
+  --brand-mint: #75D8BB;
+  --brand-orange: #FFAD66;
+  --ink: #172B32;
+  --background: #F6F2EA;
+  --surface: #FFFFFF;
+  --text-muted: #52666C;
+  --border: #D9E2DE;
+  --green-strong: #16644F;
+  --orange-strong: #9B4B13;
+  --error: #B93838;
+}
