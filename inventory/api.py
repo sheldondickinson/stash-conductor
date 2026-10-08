@@ -290,7 +290,12 @@ def container_detail(r, pk):
 def items(r):
     if r.method == "GET":
         query = r.GET.get("q", "").casefold().strip()[:300]
-        rows = Item.objects.exclude(status="removed").order_by("-created")
+        rows = Item.objects.order_by("-created")
+        rows = (
+            rows.filter(status="removed")
+            if r.GET.get("status") == "removed"
+            else rows.exclude(status="removed")
+        )
         if r.GET.get("container"):
             rows = rows.filter(container_id=r.GET["container"])
         result = []

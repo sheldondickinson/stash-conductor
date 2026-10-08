@@ -672,8 +672,17 @@ async function scan() {
 }
 async function settings() {
   modal(
-    `<h2>Your Stash</h2><p>Signed in as <strong>${esc(me.name)}</strong> · ${me.owner ? "Owner" : "Member"}</p><p>One shared inventory. Selected tubs and pending drafts belong to this device and account.</p><button id="pair" class="secondary full">Pair OpenTub Shortcut</button><div id="pair-list"></div>${me.owner ? '<button id="export" class="secondary full">Export inventory JSON</button><button id="access" class="secondary full">User access</button><button id="integration" class="secondary full">Integration credentials</button>' : ""}${me.conductor_url ? `<p><a href="${esc(me.conductor_url)}">Open Chaos Conductor ↗</a></p>` : ""}<details><summary>Install on iPhone</summary><p>Open this site in Safari, Share → Add to Home Screen → Open as Web App. Photo upload, keyboard dictation and QR scanning use your phone’s own controls.</p><p>NFC and Shortcut launching need a real-phone test. HTTPS labels and manual code entry always remain available.</p></details><button id="clear-saved" class="secondary full">Clear saved draft copies on this device</button><button id="logout" class="full">Sign out</button><p id="form-error"></p>`,
+    `<h2>Your Stash</h2><p>Signed in as <strong>${esc(me.name)}</strong> · ${me.owner ? "Owner" : "Member"}</p><p>One shared inventory. Selected tubs and pending drafts belong to this device and account.</p><button id="removed" class="secondary full">Removed records & recovery</button><button id="pair" class="secondary full">Pair OpenTub Shortcut</button><div id="pair-list"></div>${me.owner ? '<button id="export" class="secondary full">Export inventory JSON</button><button id="access" class="secondary full">User access</button><button id="integration" class="secondary full">Integration credentials</button>' : ""}${me.conductor_url ? `<p><a href="${esc(me.conductor_url)}">Open Chaos Conductor ↗</a></p>` : ""}<details><summary>Install on iPhone</summary><p>Open this site in Safari, Share → Add to Home Screen → Open as Web App. Photo upload, keyboard dictation and QR scanning use your phone’s own controls.</p><p>NFC and Shortcut launching need a real-phone test. HTTPS labels and manual code entry always remain available.</p></details><button id="clear-saved" class="secondary full">Clear saved draft copies on this device</button><button id="logout" class="full">Sign out</button><p id="form-error"></p>`,
   );
+  $("#removed").onclick = async () => {
+    const out = await api("items?status=removed");
+    modal(
+      `<h2>Removed records</h2><p>Originals and history are retained. Open a record and undo its latest removal.</p>${out.items.map((i) => `<button class="secondary full" data-removed="${i.id}">${esc(i.title)}</button>`).join("") || "<p>No removed records.</p>"}`,
+    );
+    document
+      .querySelectorAll("[data-removed]")
+      .forEach((b) => (b.onclick = () => showItem(b.dataset.removed)));
+  };
   $("#pair").onclick = async () => {
     const result = await api("pairings", {
       installation: installation(),
