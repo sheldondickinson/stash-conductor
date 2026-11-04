@@ -1,39 +1,41 @@
 # Tag preparation station
 
-The compiled reference target is **Espressif ESP32 DevKitC V4 with ESP32 WROOM 32**, PlatformIO `esp32dev`, 4 MB flash. This is a selected implementation target, not confirmation of the owner's physical board. Identify that board before connecting wires or flashing; C3, C6, S2 and S3 boards need their own pin/build review. No existing device is flashed by this project.
+The selected target is the owner's **ESP32 C3 SuperMini**, with ESP32 C3 and 4 MB flash. PlatformIO uses the `esp32-c3-devkitm-1` chip/flash profile, explicit SuperMini GPIO mapping and native USB Serial/JTAG. It is compiled as environment `esp32c3-supermini`. An S3 is unnecessary for this small station. Confirm the board marking, flash size and labelled pads before first flash; SuperMini clones can differ. No existing device is flashed by this project.
 
 Jaycar's XC4506 sheet confirms 3.3 V and SPI but does not name the IC. Inspect the actual breakout and IC marking. Firmware accepts MFRC522 version registers 0x91/0x92 and refuses unknown readers. This register check supports commissioning but is not proof of authenticity. NXP documents MFRC522 support for ISO14443 A and NTAG. Use NTAG213 stickers as the baseline; verified NTAG215/216 are also accepted. The included generic MIFARE card/fob must not be assumed to support iPhone URL NDEF use.
 
 ESPHome's standard RC522 component exposes UID and removal events, with no documented Type 2 NDEF write transaction. A UID event cannot prove a URL was written. The small PlatformIO project therefore owns encoding, while Stash owns allocation, arming, history and inventory. Home Assistant is not in the scan path.
 
-## Reference wiring
+## ESP32 C3 SuperMini wiring
 
 Disconnect power before wiring. Use 3.3 V only, short wires and a common ground. Match breakout labels rather than assuming physical pin order.
 
-| XC4506 signal | Selected ESP32 DevKitC V4 pin |
+| XC4506 signal | ESP32 C3 SuperMini labelled GPIO |
 | --- | --- |
 | VCC | 3V3 |
 | GND | GND |
-| SCK | GPIO18 |
-| MOSI | GPIO23 |
-| MISO | GPIO19 |
-| NSS / SDA / chip select | GPIO21 |
-| RST | GPIO22 |
+| SCK | GPIO4 |
+| MOSI | GPIO6 |
+| MISO | GPIO5 |
+| NSS / SDA / chip select | GPIO7 |
+| RST | GPIO10 |
 | IRQ | Unconnected |
 
-GPIO2 is the optional status LED output. DevKitC boards may not have a controllable onboard LED there; an external LED needs an appropriate series resistor. Serial output and Stash status remain sufficient without a screen or buzzer.
+The common SuperMini onboard blue LED is active low on GPIO8. Firmware drives it only after boot and uses it for success pulses. GPIO8 is a strapping pin, so do not attach an extra load. The reader avoids GPIO2, GPIO8 and GPIO9 strapping pins and leaves GPIO18/19 for USB. Check the board's actual LED; serial output and Stash status remain available if a clone differs. A screen or buzzer is unnecessary.
 
 ## Build and provision
 
 Use a Python virtual environment outside synced data, install PlatformIO and `intelhex`, then:
 
 ```sh
-pio run -d firmware/tag-station
+pio run -d firmware/tag-station -e esp32c3-supermini
 pio device list
 # Only after identifying the dedicated, connected board:
-pio run -d firmware/tag-station -t upload --upload-port YOUR_VERIFIED_PORT
+pio run -d firmware/tag-station -e esp32c3-supermini -t upload --upload-port YOUR_VERIFIED_PORT
 pio device monitor --port YOUR_VERIFIED_PORT --baud 115200
 ```
+
+Use a data capable USB cable. If first upload does not enter download mode, hold BOOT, tap RESET, release BOOT, then identify the new USB port before retrying. Native USB is enabled for serial setup. Do not connect the reader to 5 V.
 
 Dependencies are pinned in `platformio.ini`. The selected Arduino core uses a dual OTA partition layout. Build outputs include firmware, bootloader and partition images; use PlatformIO's uploader for first flash, not the application image alone.
 
@@ -65,4 +67,4 @@ Verify the actual ESP32 model, XC4506 chipset, tag GET_VERSION, capacity and cas
 
 Plain NTAG stickers work best on nonmetallic surfaces. Metal detunes an ordinary antenna; use a suitable ferrite backed on metal tag or a tested spacer. Test the final mounting position on the actual box. Do not permanently lock during commissioning. The Brother's NFC touch to connect feature pairs a phone with the printer and is not an inventory tag encoder.
 
-Sources: [Jaycar XC4506 sheet](https://media.jaycar.com.au/product/resources/XC4506_datasheetMain_67882.pdf), [NXP MFRC522](https://www.nxp.com/docs/en/data-sheet/MFRC522.pdf), [NXP NTAG21x](https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf), [ESPHome RC522](https://esphome.io/components/binary_sensor/rc522/), [PlatformIO ESP32 target](https://docs.platformio.org/en/latest/boards/espressif32/esp32dev.html).
+Sources: [Jaycar XC4506 sheet](https://media.jaycar.com.au/product/resources/XC4506_datasheetMain_67882.pdf), [NXP MFRC522](https://www.nxp.com/docs/en/data-sheet/MFRC522.pdf), [NXP NTAG21x](https://www.nxp.com/docs/en/data-sheet/NTAG213_215_216.pdf), [ESPHome RC522](https://esphome.io/components/binary_sensor/rc522/), [Espressif C3 hardware guidance](https://docs.espressif.com/projects/esp-hardware-design-guidelines/en/latest/esp32c3/schematic-checklist.html), [SuperMini vendor schematic](https://dl.artronshop.co.th/ESP32-C3%20SuperMini%20datasheet.pdf), [SuperMini supplier pin guide](https://www.auscomtech.com.au/support/guides/esp32-c3-supermini-development-board-arduino-setup-pinout-wifi-troubleshooting/).

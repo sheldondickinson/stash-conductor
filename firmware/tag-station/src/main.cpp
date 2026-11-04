@@ -9,14 +9,14 @@
 #include <Update.h>
 #include <mbedtls/sha256.h>
 #include "ndef.h"
-// Selected build target: ESP32 DevKitC V4, ESP32 WROOM 32.
-// These VSPI pins are for that target only. Verify the physical board before wiring.
-constexpr int PIN_CS=21, PIN_RST=22, PIN_SCK=18, PIN_MOSI=23, PIN_MISO=19, PIN_LED=2;
+// Owner selected ESP32 C3 SuperMini, 4 MB flash, native USB Serial/JTAG.
+// Reader wiring avoids USB18/19 and boot strapping GPIO2/8/9.
+constexpr int PIN_CS=7, PIN_RST=10, PIN_SCK=4, PIN_MOSI=6, PIN_MISO=5, PIN_LED=8;
 MFRC522 reader(PIN_CS,PIN_RST); Preferences prefs; JsonDocument cfg;
 String origin,station,credential,rootCA,mode="inspect",lastUID;bool waitingRemoval=false;
 unsigned long lastHealth=0,absentSince=0;bool armed=false;unsigned long lastOnline=0;
 String pendingUID,pendingReservation,pendingURL;bool pendingWritten=false;
-void light(int n){for(int i=0;i<n;i++){digitalWrite(PIN_LED,HIGH);delay(90);digitalWrite(PIN_LED,LOW);delay(90);}}
+void light(int n){for(int i=0;i<n;i++){digitalWrite(PIN_LED,LOW);delay(90);digitalWrite(PIN_LED,HIGH);delay(90);}}
 String uidString(){String s;for(byte i=0;i<reader.uid.size;i++){if(reader.uid.uidByte[i]<16)s+='0';s+=String(reader.uid.uidByte[i],HEX);}s.toUpperCase();return s;}
 void loadPending(){JsonDocument p;deserializeJson(p,prefs.getString("pending","{}"));pendingUID=p["uid"].as<String>();pendingReservation=p["reservation"].as<String>();pendingURL=p["url"].as<String>();}
 bool remember(String uid,String reservation,String url){JsonDocument p;p["uid"]=uid;p["reservation"]=reservation;p["url"]=url;String raw;serializeJson(p,raw);prefs.putString("pending",raw);loadPending();return pendingUID==uid&&pendingReservation==reservation&&pendingURL==url;}
@@ -29,7 +29,8 @@ bool call(JsonDocument &request,JsonDocument &result){
  String body;serializeJson(request,body);int code=http.POST(body);
  if(code!=200){http.end();return false;}
  String response=http.getString();http.end();if(response.length()>4096)return false;
- if(deserializeJson(result,response))return false;lastOnline=millis();return true;
+ if(deserializeJson(result,response))return false;
+ lastOnline=millis();return true;
 }
 bool readPage(byte page,byte* data){byte n=18;byte b[18];if(reader.MIFARE_Read(page,b,&n)!=MFRC522::STATUS_OK||n<16)return false;memcpy(data,b,16);return true;}
 size_t identify(){
@@ -107,7 +108,8 @@ void ota(const String &expected) {
  if(Update.end(true)){Serial.println("Verified firmware installed; restarting in inspect mode.");delay(200);ESP.restart();}else Serial.println("Update failed.");
 }
 void serialCommand(){
- if(!Serial.available())return;String line=Serial.readStringUntil('\n');line.trim();
+ if(!Serial.available())return;
+ String line=Serial.readStringUntil('\n');line.trim();
  if(line=="inspect"||line=="verify"||line=="encode"){mode=line;armed=false;Serial.println("Mode changed; server arming still required for writes.");return;}
  if(line.startsWith("ota ")){ota(line.substring(4));return;}
  if(line.startsWith("{")){JsonDocument candidate;if(deserializeJson(candidate,line)){Serial.println("Invalid JSON");return;}
@@ -116,7 +118,7 @@ void serialCommand(){
   prefs.putString("config",line);Serial.println("Configuration saved. Restarting.");delay(200);ESP.restart();
  }
 }
-void setup(){Serial.begin(115200);Serial.setTimeout(1500);pinMode(PIN_LED,OUTPUT);prefs.begin("stash",false);loadPending();
+void setup(){Serial.begin(115200);Serial.setTimeout(1500);digitalWrite(PIN_LED,HIGH);pinMode(PIN_LED,OUTPUT);prefs.begin("stash",false);loadPending();
  String data=prefs.getString("config","");if(deserializeJson(cfg,data))Serial.println("Provision over USB serial using protected config JSON.");
  origin=cfg["origin"].as<String>();station=cfg["station_id"].as<String>();credential=cfg["credential"].as<String>();rootCA=cfg["ca_pem"].as<String>();
  SPI.begin(PIN_SCK,PIN_MISO,PIN_MOSI,PIN_CS);reader.PCD_Init();byte chip=reader.PCD_ReadRegister(MFRC522::VersionReg);Serial.printf("Reader version: 0x%02x. Confirm XC4506 chipset before commissioning.\n",chip);
