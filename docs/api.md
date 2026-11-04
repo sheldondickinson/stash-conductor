@@ -36,3 +36,26 @@ Metadata is a JSON object. Suggested keys: manufacturer, model, input_voltage, l
 `POST /api/pairings` with `{installation: "random-browser-installation-id", label: "My phone"}` returns a credential once in the response and a dedicated endpoint. Store it in the private Shortcut. `POST /api/handoff/{pairing_uuid}` with that credential in an Authorization Bearer header and `{"code":"B014"}` sets a 60-second destination. This endpoint has no inventory read/write authority. The PWA POSTs `{installation: ...}` to `/api/consume` with its normal authenticated session. Destinations are scoped to both user and installation, consumed once, and newest scan wins. Pair from inside the installed PWA, not a separate Safari profile. Revoke with `{revoke: "pairing_uuid"}`.
 
 Stable human links are `/c/CODE` and `/i/UUID`; login preserves safe same-origin destinations. Future Conductor tools can call these APIs directly without maintaining a mirror.
+
+
+## Moving, tags and labels
+
+The same household authentication, CSRF, per user idempotency receipts and revision checks cover these additions:
+
+| Method and path | Purpose |
+| --- | --- |
+| GET/POST `/api/locations` and `/api/locations/{uuid}` | Hierarchical physical locations; cycles rejected |
+| POST `/api/moves` | Atomic `location_id`, `location_revision`, `boxes:[{id,revision}]`, optional `packing_state` |
+| GET `/api/activity` | Actor attributed recent changes; optional `entity_id` |
+| GET/POST `/api/batches` | List or generate 1 to 200 independent tags |
+| GET `/api/tags` | Optional `batch` or `box` filter |
+| GET/POST `/api/tags/{token_or_code}` | Assign, reassign, replace, lost, retire, reactivate, phone prepare/readback |
+| GET/POST `/api/stations` and `/api/stations/{uuid}` | Owner creates/revokes narrow identities; members explicitly arm/disarm |
+| GET/POST `/api/printer` | Read and check; owner saves tape and cutter preferences |
+| GET/POST `/api/print-jobs` and `/api/print-jobs/{uuid}` | Structured queue, safe cancellation, held resume, deliberate reprint |
+| GET `/api/label-preview?ref=box:UUID` | Same raster as printing; `tag:TOKEN` or `test` also accepted; PNG or `format=svg` |
+| GET `/api/moving-manifest` | JSON or `format=csv`; readable fallback inventory |
+
+Box payloads additionally accept `physical_location_id`, `parent_id`, `destination`, `description`, `packing_state`, `fragile`, `heavy`, `priority`, `category`, `keywords`, `storage_notes` and `review_date`. Physical location and parent containment are distinct from the destination room. Revision conflicts never silently overwrite another person's changes.
+
+Station credentials are separate from household API tokens. POST `/api/station/{uuid}/exchange` accepts only boot disarming, health, inspect, reserve and exact readback verification under its revocable Bearer credential. Allocation requires a deliberately armed batch. Reserved URLs and UIDs survive retries and are never recycled. GET `/api/station/{uuid}/firmware` exposes only the operator staged binary to that station identity. Neither endpoint grants inventory reads or arbitrary job instructions. See the [station protocol and commissioning guide](tag-station.md).

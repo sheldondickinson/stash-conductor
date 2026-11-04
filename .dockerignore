@@ -13,3 +13,8 @@
 !scripts/**
 **/__pycache__
 **/*.pyc
+!integrations/
+!integrations/ptouch/
+!integrations/ptouch/go.mod
+!integrations/ptouch/go.sum
+!integrations/ptouch/main.go

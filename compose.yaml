@@ -1,13 +1,15 @@
 services:
   stash:
     build: .
-    image: stash-conductor:0.1.0
+    image: stash-conductor:0.2.0
     restart: unless-stopped
     env_file: .env
     ports:
       - "127.0.0.1:8000:8000"
     volumes:
       - stash_data:/data
+      - ./operator/printer:/run/stash-printer:ro
+      - ./operator/station:/run/stash-station:ro
     read_only: true
     tmpfs:
       - /tmp:size=128m,mode=1777
@@ -18,5 +20,21 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+  print-worker:
+    image: stash-conductor:0.2.0
+    restart: unless-stopped
+    env_file: .env
+    command: [python, manage.py, print_worker]
+    depends_on:
+      stash:
+        condition: service_healthy
+    volumes:
+      - stash_data:/data
+      - ./operator/printer:/run/stash-printer:ro
+    read_only: true
+    tmpfs:
+      - /tmp:size=64m,mode=1777
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
 volumes:
   stash_data:

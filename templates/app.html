@@ -13,9 +13,13 @@
     <link rel="manifest" href="/static/manifest.webmanifest" />
     <link rel="icon" href="/static/brand/favicon.ico" />
     <link rel="apple-touch-icon" href="/static/brand/icon-180.png" />
+    <link rel="stylesheet" href="/static/vendor/313-command/tokens.css" />
+    <link rel="stylesheet" href="/static/vendor/313-command/components.css" />
     <link rel="stylesheet" href="/static/app.css" />
+    <link rel="stylesheet" href="/static/moving.css" />
     <script src="/static/vendor/jsQR.js" defer></script>
     <script src="/static/app.js" defer></script>
+    <script src="/static/moving.js" defer></script>
   </head>
   <body>
     <a href="#main" class="skip">Skip to content</a>
@@ -26,7 +30,7 @@
         ></a
       >
       <div class="top-actions">
-        <button id="scan" class="secondary">▣ Scan tub</button
+        <button id="scan" class="secondary">▣ Scan</button
         ><button id="settings" class="icon-button" aria-label="Settings">
           ☷
         </button>
@@ -37,7 +41,8 @@
       <section id="view" aria-busy="true"><p>Opening your stash…</p></section>
     </main>
     <nav class="bottom" aria-label="Main">
-      <button data-tab="find" class="active">⌕<span>Find</span></button
+      <button data-tab="packing">▦<span>Pack</span></button
+      ><button data-tab="find" class="active">⌕<span>Find</span></button
       ><button data-tab="add">＋<span>Add</span></button
       ><button data-tab="containers">▤<span>Containers</span></button>
     </nav>

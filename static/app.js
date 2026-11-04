@@ -62,7 +62,9 @@ async function api(path, data, key) {
         true,
       );
     }
-    throw Error(out.error || "Request failed");
+    const error = Error(out.error || "Request failed");
+    error.status = r.status;
+    throw error;
   }
   return out;
 }
@@ -125,7 +127,7 @@ function empty() {
 function itemCard(i) {
   let c = tub(i.container_id),
     last = tub(i.last_container_id);
-  return `<article class="card"><button class="open-item" data-item="${i.id}">${i.photo ? `<img class="item-photo" loading="lazy" src="${thumb(i.photo)}" alt="${esc(i.title)}">` : '<div class="placeholder" aria-hidden="true">▤</div>'}<div class="card-content"><span class="badge ${i.status === "stored" ? "" : "warning"}">${esc(statusNames[i.status])}</span><h3>${esc(i.title)}</h3><p class="location">${c ? esc(c.code + " · " + (c.location || "Location not set")) : last ? "Last in " + esc(last.code) : "No confirmed location"}</p><small>${i.quantity === null ? "Quantity unknown" : i.quantity + " " + esc(i.unit)}</small></div></button><label class="check card-content"><input type="checkbox" data-select="${i.id}" ${selected.has(i.id) ? "checked" : ""}> Select</label></article>`;
+  return `<article class="card"><button class="open-item" data-item="${i.id}">${i.photo ? `<img class="item-photo" loading="lazy" src="${thumb(i.photo)}" alt="${esc(i.title)}">` : '<div class="placeholder" aria-hidden="true">▤</div>'}<div class="card-content"><span class="badge ${i.status === "stored" ? "" : "warning"}">${esc(statusNames[i.status])}</span><h3>${esc(i.title)}</h3><p class="location">${c ? esc(c.code + " · " + (c.effective_location || c.location || "Location not set")) : last ? "Last in " + esc(last.code) : "No confirmed location"}</p><small>${i.quantity === null ? "Quantity unknown" : i.quantity + " " + esc(i.unit)}</small></div></button><label class="check card-content"><input type="checkbox" data-select="${i.id}" ${selected.has(i.id) ? "checked" : ""}> Select</label></article>`;
 }
 function bindCards() {
   document
@@ -161,6 +163,8 @@ function render() {
   $("#view").ariaBusy = "false";
   if (tab === "find") renderFind();
   else if (tab === "add") renderAdd();
+  else if (tab === "packing")
+    renderPacking().catch((e) => notice(e.message, true));
   else renderContainers();
 }
 function renderFind() {
@@ -233,7 +237,7 @@ async function captureForm() {
       '<p class="muted">Select or scan a tub to start. Your saved drafts keep their original tub.</p>';
     return;
   }
-  const all = await drafts();
+  const all = (await drafts()).filter((d) => !d.kind);
   currentDraft = all.find(
     (d) => d.container_id === active && d.state === "editing",
   ) || {
@@ -246,8 +250,12 @@ async function captureForm() {
     created: Date.now(),
   };
   $("#capture-area").innerHTML =
-    `<div class="tub-banner"><div><small>Adding to</small><br><strong>${esc(c.code)}</strong></div><span>${esc(c.location || c.name || "Your selected tub")}</span></div><form id="capture-form" class="capture-form"><label class="photo-input">📷 Take a photo or choose one<input id="photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><div id="photo-preview">${currentDraft.photo ? `<img class="preview" src="${currentDraft.photo}" alt="Pending capture">` : ""}</div><label>A rough description is plenty<textarea id="description" placeholder="Mixed cables, little blue board…">${esc(currentDraft.title)}</textarea></label><p class="muted"><small>Use your keyboard microphone to dictate. No category or count needed.</small></p><button class="orange full" id="save-next">Save & next →</button><small id="draft-state">${currentDraft.title || currentDraft.photo ? "Draft retained on this device" : "Photo or words — either is enough."}</small></form>`;
+    `<div class="tub-banner"><div><small>Adding to</small><br><strong>${esc(c.code)}</strong></div><span>${esc(c.effective_location || c.location || c.name || "Your selected tub")}</span></div><form id="capture-form" class="capture-form"><label class="photo-input">📷 Take a photo or choose one<input id="photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><div id="photo-preview">${currentDraft.photo ? `<img class="preview" src="${currentDraft.photo}" alt="Pending capture">` : ""}</div><label>A rough description is plenty<textarea id="description" placeholder="Mixed cables, little blue board…">${esc(currentDraft.title)}</textarea></label><label>Quantity, if known<input id="capture-quantity" type="number" min="1" value="${currentDraft.quantity || ""}"></label><p class="muted"><small>Use your keyboard microphone to dictate. No category or count needed.</small></p><button class="orange full" id="save-next">Save & next →</button><small id="draft-state">${currentDraft.title || currentDraft.photo ? "Draft retained on this device" : "Photo or words — either is enough."}</small></form>`;
   const draft = currentDraft;
+  $("#capture-quantity").oninput = async () => {
+    draft.quantity = Number($("#capture-quantity").value) || null;
+    await persist(draft);
+  };
   $("#description").oninput = async () => {
     draft.title = $("#description").value;
     await persist(draft);
@@ -316,7 +324,7 @@ async function renderDrafts() {
   const el = $("#draft-list");
   if (!el) return;
   const all = (await drafts())
-    .filter((d) => d.state !== "editing")
+    .filter((d) => !d.kind && d.state !== "editing")
     .sort((a, b) => b.created - a.created);
   el.innerHTML =
     all
@@ -345,7 +353,7 @@ async function flushDrafts() {
   sending = true;
   try {
     for (const d of await drafts()) {
-      if (!["pending", "failed"].includes(d.state)) continue;
+      if (d.kind || !["pending", "failed"].includes(d.state)) continue;
       try {
         const live = await api("me");
         if (live.id !== me.id)
@@ -354,7 +362,12 @@ async function flushDrafts() {
           );
         const out = await api(
           "items",
-          { title: d.title, photo: d.photo, container_id: d.container_id },
+          {
+            title: d.title,
+            photo: d.photo,
+            container_id: d.container_id,
+            quantity: d.quantity || null,
+          },
           d.id,
         );
         d.state = "saved";
@@ -381,7 +394,7 @@ function renderContainers() {
       "Good things come<br>in ordinary tubs.",
       "Move a tub once. Everything inside follows its location.",
     ) +
-    `<div class="section-head"><h2>${tubs.length} containers</h2><button class="primary" id="new-tub">＋ New tub</button></div><div class="grid">${tubs.map((c) => `<article class="card container-card"><span class="code">${esc(c.code)}</span><h3>${esc(c.name || "Storage tub")}</h3><p class="location">${esc(c.location || "Set a shelf or location")}</p><small>${items.filter((i) => i.container_id === c.id && i.status === "stored").length} records stored</small><button class="primary full" data-add-tub="${c.id}">Add here</button><button class="secondary full" data-tub="${c.id}">Details & label</button></article>`).join("")}</div>`;
+    `<div class="section-head"><h2>${tubs.length} containers</h2><button class="primary" id="new-tub">＋ New tub</button></div><div class="grid">${tubs.map((c) => `<article class="card container-card"><span class="code">${esc(c.code)}</span><h3>${esc(c.name || "Storage tub")}</h3><p class="location">${esc(c.effective_location || c.location || "Set a shelf or location")}</p><small>${items.filter((i) => i.container_id === c.id && i.status === "stored").length} records stored</small><button class="primary full" data-add-tub="${c.id}">Add here</button><button class="secondary full" data-tub="${c.id}">Details & label</button></article>`).join("")}</div>`;
   $("#new-tub").onclick = newTub;
   document
     .querySelectorAll("[data-add-tub]")
@@ -412,9 +425,10 @@ function newTub() {
 function showTub(id) {
   const c = tub(id);
   modal(
-    `<p class="eyebrow">Container</p><h2>${esc(c.code)}</h2><form id="edit-tub"><label>Name<input name="name" value="${esc(c.name)}"></label><label>Physical location<input name="location" value="${esc(c.location)}"></label><label>Optional tub photo<input id="tub-photo" type="file" accept="image/jpeg,image/png,image/webp"></label><button class="primary full">Save location</button><p id="form-error"></p></form><div class="label-print"><img class="qr" src="/api/label/${encodeURIComponent(c.code)}" alt="QR code for ${esc(c.code)}"><strong class="code">${esc(c.code)}</strong><p>Stash Conductor</p><small>${esc(location.origin + "/c/" + c.code)}</small></div><div class="row no-print"><button id="print" class="secondary">Print label</button><button id="contents" class="secondary">View contents</button><button id="add-here" class="primary">Add here</button></div>`,
+    `<p class="eyebrow">Container</p><h2>${esc(c.code)}</h2><form id="edit-tub"><label>Name<input name="name" value="${esc(c.name)}"></label><p>Current physical location: ${esc(c.effective_location || c.location || "Not set")}</p><button type="button" id="packing-details" class="secondary">Packing and location details</button>${!c.physical_location_id && !c.parent_id ? `<label>Location note<input name="location" value="${esc(c.location)}"></label>` : ""}<label>Optional tub photo<input id="tub-photo" type="file" accept="image/jpeg,image/png,image/webp"></label><button class="primary full">Save location</button><p id="form-error"></p></form><div class="label-print"><img class="qr" src="/api/label/${encodeURIComponent(c.code)}" alt="QR code for ${esc(c.code)}"><strong class="code">${esc(c.code)}</strong><p>Stash Conductor</p><small>${esc(location.origin + "/c/" + c.code)}</small></div><div class="row no-print"><button id="print" class="secondary">Print label</button><button id="contents" class="secondary">View contents</button><button id="add-here" class="primary">Add here</button></div>`,
   );
-  $("#print").onclick = () => window.print();
+  $("#packing-details").onclick = guard(() => boxEditor(c.id));
+  $("#print").onclick = guard(() => printLabels(["box:" + c.id]));
   $("#add-here").onclick = () => {
     closeDialog();
     selectTub(c.code);
@@ -460,7 +474,7 @@ async function showItem(id) {
       i = out.item,
       c = tub(i.container_id);
     modal(
-      `<p class="eyebrow">${esc(statusNames[i.status])}</p><h2>${esc(i.title)}</h2>${i.photo ? `<a href="/api/media/${i.photo}" target="_blank" rel="noopener"><img class="detail-photo" src="${thumb(i.photo)}" alt="${esc(i.title)}"></a>` : ""}<p>${c ? esc(c.code + " · " + c.location) : "Last tub: " + esc(tub(i.last_container_id)?.code || "Unknown")}<br><small>Last confirmed ${esc(new Date(i.confirmed).toLocaleString())}</small></p><div class="detail-actions"><button data-action="take" class="orange">Take out</button><button data-action="return" class="primary">Return / move</button><button data-action="missing" class="secondary">Not found here</button><button data-action="unknown" class="secondary">Unknown location</button><button data-action="used" class="secondary">Used up</button><button id="edit-item" class="secondary">Edit details</button>${i.quantity > 1 ? '<button data-action="split" class="secondary">Split count</button>' : ""}<button data-action="remove" class="secondary">Remove record</button></div><p class="muted">${i.quantity === null ? "Quantity unknown" : i.quantity + " " + esc(i.unit)}. Removal can be undone; originals are retained.</p><details><summary>Identity & device details</summary><p>Original words: ${esc(i.original || "Photo-only capture")}</p><p>Aliases: ${esc(i.aliases || "None yet")}</p><pre>${esc(JSON.stringify(i.metadata, null, 2))}</pre><h3>Unconfirmed suggestions</h3><pre>${esc(JSON.stringify(i.suggestions, null, 2))}</pre><p>Review suggestions, then use Edit details to confirm only supported facts.</p><p>Specifications need confirmed sources and units. Guesses are not electrical advice. Do not store passwords here.</p></details><details><summary>History (${out.history.length})</summary><ol class="history">${out.history.map((h, n) => `<li><strong>${esc(h.action)}</strong> · ${esc(h.actor)}<small>${esc(new Date(h.at).toLocaleString())}</small>${n === 0 ? `<button class="link" id="undo-latest" data-event="${h.id}">Undo latest</button>` : ""}</li>`).join("")}</ol></details><p id="form-error" role="alert"></p>`,
+      `<p class="eyebrow">${esc(statusNames[i.status])}</p><h2>${esc(i.title)}</h2>${i.photo ? `<a href="/api/media/${i.photo}" target="_blank" rel="noopener"><img class="detail-photo" src="${thumb(i.photo)}" alt="${esc(i.title)}"></a>` : ""}<p>${c ? esc(c.code + " · " + (c.effective_location || c.location || "Location not set")) : "Last tub: " + esc(tub(i.last_container_id)?.code || "Unknown")}<br><small>Last confirmed ${esc(new Date(i.confirmed).toLocaleString())}</small></p><div class="detail-actions"><button data-action="take" class="orange">Take out</button><button data-action="return" class="primary">Return / move</button><button data-action="missing" class="secondary">Not found here</button><button data-action="unknown" class="secondary">Unknown location</button><button data-action="used" class="secondary">Used up</button><button id="edit-item" class="secondary">Edit details</button>${i.quantity > 1 ? '<button data-action="split" class="secondary">Split count</button>' : ""}<button data-action="remove" class="secondary">Remove record</button></div><p class="muted">${i.quantity === null ? "Quantity unknown" : i.quantity + " " + esc(i.unit)}. Removal can be undone; originals are retained.</p><details><summary>Identity & device details</summary><p>Original words: ${esc(i.original || "Photo-only capture")}</p><p>Aliases: ${esc(i.aliases || "None yet")}</p><pre>${esc(JSON.stringify(i.metadata, null, 2))}</pre><h3>Unconfirmed suggestions</h3><pre>${esc(JSON.stringify(i.suggestions, null, 2))}</pre><p>Review suggestions, then use Edit details to confirm only supported facts.</p><p>Specifications need confirmed sources and units. Guesses are not electrical advice. Do not store passwords here.</p></details><details><summary>History (${out.history.length})</summary><ol class="history">${out.history.map((h, n) => `<li><strong>${esc(h.action)}</strong> · ${esc(h.actor)}<small>${esc(new Date(h.at).toLocaleString())}</small>${n === 0 ? `<button class="link" id="undo-latest" data-event="${h.id}">Undo latest</button>` : ""}</li>`).join("")}</ol></details><p id="form-error" role="alert"></p>`,
     );
     document
       .querySelectorAll("[data-action]")
@@ -714,6 +728,19 @@ async function settings() {
     );
   };
   $("#logout").onclick = async () => {
+    const pending = (await drafts()).filter((d) => d.state !== "saved");
+    if (
+      pending.length &&
+      !confirm(
+        "Signing out clears this device's drafts and photos. Save them first, or confirm you want to discard these local drafts and sign out.",
+      )
+    )
+      return;
+    for (const d of await drafts()) await store("delete", d.id);
+    localStorage.removeItem("stash-tub:" + me.namespace);
+    localStorage.removeItem("stash-place:" + me.namespace);
+    if ("caches" in window)
+      for (const k of await caches.keys()) await caches.delete(k);
     await fetch("/auth/logout", {
       method: "POST",
       headers: { "X-CSRFToken": me.csrf },
@@ -826,7 +853,14 @@ document.querySelectorAll("[data-tab]").forEach(
     active = localStorage.getItem("stash-tub:" + me.namespace);
     const match = location.pathname.match(/^\/c\/([^/]+)$/),
       item = location.pathname.match(/^\/i\/([^/]+)$/);
-    if (match) await selectTub(decodeURIComponent(match[1]));
+    if (location.pathname.startsWith("/t/")) {
+      await renderPacking();
+      await openTag(location.pathname.slice(3));
+    } else if (location.pathname.startsWith("/l/")) {
+      nav("packing");
+      await locationMove(location.pathname.slice(3));
+    } else if (location.pathname === "/packing") nav("packing");
+    else if (match) await selectTub(decodeURIComponent(match[1]));
     else {
       render();
       if (item) showItem(item[1]);

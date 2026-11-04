@@ -7,3 +7,5 @@ The four supplied artwork masters are AI-generated raster images supplied and ap
 The application uses system fonts; no third-party font files are bundled.
 
 Bundled jsQR 1.4.0 is Apache-2.0 licensed; its unmodified licence is in `static/vendor/jsQR.LICENSE`. Python dependencies are installed from the pinned `requirements.txt` and retain their upstream metadata/licences in the environment. Principal licences: Django BSD-3-Clause; Authlib BSD-3-Clause; Requests Apache-2.0; Pillow MIT-CMU; qrcode BSD; argon2-cffi MIT; Gunicorn MIT; WhiteNoise MIT; cryptography Apache-2.0/BSD. No InvenTree source is copied; its concepts informed the documented fit assessment.
+
+The vendored 313 Command 1.1.0 design assets retain their owner's rights and are not relicensed by this repository's application MIT licence. Their exact source tag, commit and checksums are recorded in `design-system.lock.json`. Existing Stash artwork is preserved. DejaVu Sans is distributed under the licence beside `static/vendor/label-font.ttf`. The printer bridge uses the MIT licensed ptouch-go module, with pinned module sums and upstream licence in `integrations/ptouch`.

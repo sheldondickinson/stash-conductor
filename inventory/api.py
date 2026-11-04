@@ -13,7 +13,7 @@ import qrcode
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
-from django.db import IntegrityError, transaction
+from django.db import IntegrityError, OperationalError, transaction
 from django.http import FileResponse, HttpResponse, JsonResponse
 from django.http.response import HttpResponseBase
 from django.middleware.csrf import CsrfViewMiddleware, get_token
@@ -102,7 +102,7 @@ def api(fn):
             return JsonResponse(
                 {"error": "Record not found or invalid identifier"}, status=404
             )
-        except IntegrityError:
+        except (IntegrityError, OperationalError):
             return JsonResponse(
                 {
                     "error": "That code already exists, or a concurrent update occurred. Refresh and retry."
@@ -177,6 +177,31 @@ def cdata(c):
         "location": c.location,
         "photo": c.photo,
         "revision": c.revision,
+        **{
+            f: getattr(c, f)
+            for f in (
+                "destination",
+                "description",
+                "packing_state",
+                "fragile",
+                "heavy",
+                "priority",
+                "category",
+                "keywords",
+                "storage_notes",
+            )
+        },
+        "review_date": c.review_date.isoformat() if c.review_date else None,
+        "physical_location_id": str(c.physical_location_id)
+        if c.physical_location_id
+        else None,
+        "parent_id": str(c.parent_id) if c.parent_id else None,
+        "tag_codes": list(
+            c.tag_set.filter(state="active").values_list("code", flat=True)
+        ),
+        "effective_location": __import__(
+            "inventory.moving", fromlist=["whereabouts"]
+        ).whereabouts(c),
     }
 
 
@@ -250,6 +275,8 @@ def containers(r):
         raise Problem("Use a short code with letters, numbers, _ or -")
     if count > 1 and not re.search(r"\d+$", code):
         raise Problem("Batch start code must end in a number")
+    from .moving import apply_box
+
     out = []
     for n in range(count):
         name = code
@@ -262,6 +289,8 @@ def containers(r):
             location=text(p.get("location", ""), 300),
             photo=photo(p.get("photo", "")) if n == 0 else "",
         )
+        apply_box(c, p)
+        c.save()
         out.append(event(r, "container", c, "create", {}))
     return {"created": out}
 
@@ -281,6 +310,9 @@ def container_detail(r, pk):
             setattr(c, f, text(p[f], 300 if f == "location" else 160))
     if p.get("photo"):
         c.photo = photo(p["photo"])
+    from .moving import apply_box
+
+    apply_box(c, p)
     c.revision += 1
     c.save()
     return event(r, "container", c, "edit", before)
@@ -301,7 +333,13 @@ def items(r):
         result = []
         for i in rows:
             hay = " ".join(
-                [i.title, i.original, i.aliases, json.dumps(i.metadata)]
+                [
+                    i.title,
+                    i.original,
+                    i.aliases,
+                    json.dumps(i.metadata),
+                    json.dumps(cdata(i.container)) if i.container else "",
+                ]
             ).casefold()
             terms = query.split()
             if not terms or all(
@@ -473,6 +511,8 @@ def undo(r, pk):
         raise Problem(
             "Split creates two records. Correct the counts and locations explicitly."
         )
+    if e.entity not in ("container", "item"):
+        raise Problem("Use an explicit correction for this change")
     model = Container if e.entity == "container" else Item
     obj = model.objects.get(pk=e.entity_id)
     if obj.revision != e.after["revision"]:
@@ -486,7 +526,14 @@ def undo(r, pk):
         obj.status = "removed"
     else:
         for f, v in e.before.items():
-            if f not in ("id", "revision", "created", "suggestions"):
+            if f not in (
+                "id",
+                "revision",
+                "created",
+                "suggestions",
+                "effective_location",
+                "tag_codes",
+            ):
                 setattr(obj, f, v)
     obj.revision += 1
     obj.save()
@@ -521,7 +568,22 @@ def label(r, code):
 def export(r):
     owner(r)
     return {
-        "version": 1,
+        "version": 2,
+        "locations": [
+            __import__("inventory.moving", fromlist=["ldata"]).ldata(x)
+            for x in __import__(
+                "inventory.models", fromlist=["Location"]
+            ).Location.objects.all()
+        ],
+        "tags": [
+            __import__("inventory.moving", fromlist=["tdata"]).tdata(x)
+            for x in __import__("inventory.models", fromlist=["Tag"]).Tag.objects.all()
+        ],
+        "batches": list(
+            __import__(
+                "inventory.models", fromlist=["TagBatch"]
+            ).TagBatch.objects.values()
+        ),
         "containers": [cdata(c) for c in Container.objects.all()],
         "items": [idata(i) for i in Item.objects.all()],
         "events": list(

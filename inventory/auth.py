@@ -1,5 +1,6 @@
 import hashlib
 from datetime import timedelta
+from urllib.parse import parse_qs, unquote, urlsplit
 
 from authlib.integrations.django_client import OAuth
 from django.conf import settings
@@ -34,9 +35,9 @@ def safe_next(value):
         value
         if isinstance(value, str)
         and value.startswith("/")
-        and not value.startswith("//")
-        and "\\" not in value
-        and not any(ord(c) < 32 for c in value)
+        and not unquote(value).startswith("//")
+        and "\\" not in unquote(value)
+        and not any(ord(c) < 32 or ord(c) == 127 for c in unquote(value))
         else "/"
     )
 
@@ -46,10 +47,14 @@ def signin(request):
     if request.user.is_authenticated:
         return redirect(next_url)
     if settings.AUTH_MODE == "oidc":
-        request.session["return_to"] = next_url
-        return oauth.identity.authorize_redirect(
+        response = oauth.identity.authorize_redirect(
             request, settings.ORIGIN + "/auth/callback"
         )
+        state = parse_qs(urlsplit(response.url).query)["state"][0]
+        destinations = request.session.get("return_destinations", {})
+        destinations[state] = next_url
+        request.session["return_destinations"] = dict(list(destinations.items())[-10:])
+        return response
     error = ""
     if request.method == "POST":
         key = hashlib.sha256(
@@ -127,7 +132,9 @@ def callback(request):
             "userinfo"
         ]  # Authlib verifies signature, issuer, audience, expiry and nonce.
         user = resolve_identity(info)
-        dest = safe_next(request.session.pop("return_to", "/"))
+        destinations = request.session.get("return_destinations", {})
+        dest = safe_next(destinations.pop(request.GET.get("state"), "/"))
+        request.session["return_destinations"] = destinations
         login(request, user, backend="django.contrib.auth.backends.ModelBackend")
         return redirect(dest)
     except Exception:
@@ -141,4 +148,6 @@ def callback(request):
 @require_POST
 def signout(request):
     logout(request)
-    return redirect("/auth/login")
+    response = redirect("/auth/login")
+    response["Clear-Site-Data"] = '"cache", "storage"'
+    return response

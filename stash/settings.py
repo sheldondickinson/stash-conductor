@@ -87,3 +87,12 @@ DATA_UPLOAD_MAX_MEMORY_SIZE = 32 * 1024 * 1024
 FILE_UPLOAD_MAX_MEMORY_SIZE = 20 * 1024 * 1024
 USE_TZ = True
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
+
+# Operator controlled only. Never accept a printer address or executable from an API request.
+PRINT_BRIDGE = os.environ.get("STASH_PRINT_BRIDGE", "/usr/local/bin/stash-print-bridge")
+PRINTER_CONFIG = os.environ.get(
+    "STASH_PRINTER_CONFIG", "/run/stash-printer/config.json"
+)
+STATION_FIRMWARE = os.environ.get(
+    "STASH_STATION_FIRMWARE", "/run/stash-station/firmware.bin"
+)
