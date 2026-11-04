@@ -1,0 +1,118 @@
+/* Existing Stash branding remains; shared interface values come from pinned 313 Command. */
+:root {
+  color-scheme: dark;
+  --paper: var(--c313-color-background);
+  --card: var(--c313-color-surface);
+  --text: var(--c313-color-text);
+  --muted: var(--c313-color-muted);
+  --line: var(--c313-color-border);
+  --mint: var(--c313-color-accent);
+  --orange: var(--c313-color-accent);
+  --green: var(--c313-color-success);
+}
+.actions {
+  display: flex;
+  gap: var(--c313-space-8);
+  flex-wrap: wrap;
+  margin: var(--c313-space-12) 0;
+}
+.actions > * {
+  flex: 0 1 auto;
+}
+.pack-filters {
+  display: grid;
+  grid-template-columns: 1fr 2fr;
+  gap: var(--c313-space-12);
+}
+.pack-card {
+  padding: var(--c313-space-16);
+}
+.pack-card h2 {
+  margin-top: 0;
+}
+.tag-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+  gap: var(--c313-space-8);
+}
+.tag-list small {
+  display: block;
+}
+.wrap,
+pre {
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+.label-preview {
+  display: block;
+  max-width: 100%;
+  height: auto;
+  background: white;
+  image-rendering: pixelated;
+  margin: 16px 0;
+}
+.manifest article {
+  break-inside: avoid;
+  border-bottom: 1px solid var(--line);
+}
+button.primary,
+button.orange {
+  background: var(--c313-color-accent);
+  color: var(--c313-color-on-accent);
+}
+dialog {
+  max-height: 90dvh;
+  overflow: auto;
+}
+.bottom {
+  grid-template-columns: repeat(4, 1fr);
+}
+.check input {
+  width: auto;
+  min-width: 24px;
+}
+.pack-card p {
+  overflow-wrap: anywhere;
+}
+@media (max-width: 550px) {
+  .pack-filters {
+    grid-template-columns: 1fr;
+  }
+  .actions > button {
+    flex: 1 1 140px;
+  }
+  .section-head {
+    flex-wrap: wrap;
+  }
+}
+@media print {
+  body > *:not(dialog) {
+    display: none !important;
+  }
+  dialog {
+    position: static !important;
+    display: block !important;
+    width: 100% !important;
+    max-width: none !important;
+    max-height: none !important;
+    background: white !important;
+    color: black !important;
+    border: 0 !important;
+  }
+  dialog::backdrop,
+  .close,
+  .no-print {
+    display: none !important;
+  }
+  .manifest {
+    color: black;
+  }
+  .manifest h3,
+  .manifest p {
+    color: black;
+  }
+  body {
+    background: white !important;
+  }
+}

@@ -1,0 +1,11 @@
+{
+  "name": "313 Command",
+  "version": "1.1.0",
+  "repository": "https://github.com/sheldondickinson/313-command",
+  "ref": "v1.1.0",
+  "commit": "058276d9a766ef02d0978062aa4448ec94fca9ac",
+  "assets": {
+    "tokens.css": "2ea78204340a4901eadd8992aa708bbed681212960284042b062995577b660bb",
+    "components.css": "7e638f08fe537b0f025de8cb81198e4dc43b783c88660218c9e73a880e989a90"
+  }
+}

@@ -4,7 +4,7 @@ from django.shortcuts import redirect, render
 from django.urls import path
 from django.views.decorators.csrf import ensure_csrf_cookie
 
-from inventory import api, auth
+from inventory import api, auth, moving, printing, stations
 
 
 @ensure_csrf_cookie
@@ -29,7 +29,7 @@ def sw(request):
 
 
 urlpatterns = [
-    path("health", lambda r: JsonResponse({"status": "ok", "version": "0.1.0"})),
+    path("health", lambda r: JsonResponse({"status": "ok", "version": "0.2.0"})),
     path("auth/login", auth.signin),
     path("auth/callback", auth.callback),
     path("auth/logout", auth.signout),
@@ -49,6 +49,25 @@ urlpatterns = [
     path("api/consume", api.consume),
     path("api/users", api.users),
     path("api/tokens", api.tokens),
+    path("api/locations", moving.locations),
+    path("api/locations/<uuid:pk>", moving.locations),
+    path("api/moves", moving.moves),
+    path("api/activity", moving.activity),
+    path("api/batches", moving.batches),
+    path("api/tags", moving.tags),
+    path("api/tags/<str:token>", moving.tags),
+    path("api/moving-manifest", moving.manifest),
+    path("api/printer", printing.printer),
+    path("api/print-jobs", printing.jobs),
+    path("api/print-jobs/<uuid:pk>", printing.jobs),
+    path("api/label-preview", printing.preview),
+    path("api/stations", stations.stations),
+    path("api/stations/<uuid:pk>", stations.stations),
+    path("api/station/<uuid:pk>/exchange", stations.exchange),
+    path("api/station/<uuid:pk>/firmware", stations.firmware),
+    path("t/<str:token>", app),
+    path("l/<str:code>", app),
+    path("packing", app),
     path("", app),
     path("c/<str:code>", app),
     path("i/<uuid:pk>", app),

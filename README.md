@@ -43,7 +43,7 @@ See [authentication](docs/authentication.md). `AUTH_MODE=oidc` completely disabl
 
 Count blank means unknown. A bag can remain one batch. “Not found here” retains its last tub while making uncertainty explicit. Moving a container changes its shared location, without rewriting its contents. Original images and history are retained when records are removed. There is no permanent-delete button.
 
-Unsent drafts remain in IndexedDB under the signed-in user's namespace, bound to their original tub. Foreground reconnect retries use the same request key. Offline cold start shows a reconnect page; an already-open capture screen can keep drafts. Private pages, API responses and photos are never cached by the service worker. Signing out clears server access, but deliberately retains account-scoped drafts on that physical browser; use trusted devices. Saved draft copies can be cleared from Settings.
+Unsent drafts remain in IndexedDB under the signed-in user's namespace, bound to their original tub. Foreground reconnect retries use the same request key. Offline cold start shows a reconnect page; an already-open capture screen can keep drafts. Private pages, API responses and photos are never cached by the service worker. Signing out warns about unsaved work, clears account drafts and photos on that browser, and ends server access. Saved draft copies can also be cleared from Settings.
 
 ## Operations and development
 
@@ -71,3 +71,9 @@ python manage.py test
 Use PostgreSQL only after adapting and testing the database configuration; this release targets a small SQLite household installation. No analytics, telemetry, external font requests or required AI service.
 
 MIT for original code. Supplied generated raster artwork is included with the owner's permission; see notices. Contributions should preserve photo-first capture, unknown quantities and private-by-default deployment.
+
+## Moving, tags and Brother labels
+
+The moving workflow extends the original inventory with independent prepared tags, hierarchical physical locations, box packing states, durable local drafts and a conservative print queue. The pinned PT-P750W network bridge supports actual raster labels and reported tape checks. Firmware for a dedicated ESP32 reference station is included; commissioning hardware is separate from compiling it.
+
+Read [daily packing](docs/packing.md), [Brother printing](docs/printing.md), [tag station build and commissioning](docs/tag-station.md), and [backup and relocation](docs/operations.md). Run tests with `requirements-test.txt`; production dependencies remain in `requirements.txt`.
