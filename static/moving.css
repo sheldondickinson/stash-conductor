@@ -75,6 +75,46 @@ dialog {
 .pack-card p {
   overflow-wrap: anywhere;
 }
+.paper-preview {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-rows: repeat(6, minmax(0, 1fr));
+  aspect-ratio: 210 / 297;
+  padding: 4.76%;
+  background: white;
+  color: black;
+  width: 100%;
+  max-width: 440px;
+  box-sizing: border-box;
+  margin: var(--c313-space-4) auto;
+}
+.paper-cell {
+  border: 0.5px solid #bfbfbf;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-evenly;
+  min-width: 0;
+  overflow: hidden;
+  font: 9px sans-serif;
+}
+.paper-cell strong, .paper-cell b {
+  max-width: 90%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.paper-cell small { font: 5px sans-serif; }
+.paper-qr {
+  aspect-ratio: 1;
+  width: 56.8%;
+  border: 1px solid black;
+  display: grid;
+  place-content: center;
+  box-sizing: border-box;
+}
+.batch-boxes .check { flex-wrap: wrap; }
+.batch-boxes a { margin-left: auto; }
 @media (max-width: 550px) {
   .pack-filters {
     grid-template-columns: 1fr;
@@ -116,3 +156,6 @@ dialog {
     background: white !important;
   }
 }
+
+#bulk-custom-label[hidden] { display: none; }
+#dialog-content > h2 { padding-right: 48px; }

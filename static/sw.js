@@ -1,9 +1,10 @@
 // Only public, versioned shell resources. Never cache private pages, API, photos or auth.
-const CACHE = "stash-shell-v2";
+const CACHE = "stash-shell-v3";
 const FILES = [
   "/static/app.css",
   "/static/moving.css",
   "/static/moving.js",
+  "/static/box-batches.js",
   "/static/vendor/313-command/tokens.css",
   "/static/vendor/313-command/components.css",
   "/static/app.js",

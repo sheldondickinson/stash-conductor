@@ -42,7 +42,7 @@ async function renderPacking() {
   await refresh();
   places = (await api("locations")).locations;
   $("#view").innerHTML =
-    `<div class="section-head"><div><p class="eyebrow">Moving and storage</p><h1>One box at a time.</h1></div><button id="pack-new" class="primary">New box</button></div><div class="actions"><button id="prepare-tags">Prepare tags</button><button id="packing-scan">Scan next box</button><button id="manage-locations" class="secondary">Locations and moves</button><button id="printer-panel" class="secondary">Printer and queue</button><button id="manifest" class="secondary">Moving manifest</button><button id="recent" class="secondary">Recent changes</button></div><div class="pack-filters"><label>Show<select id="pack-filter"><option value="">All boxes</option><option value="packing">Still packing</option><option value="priority">Essentials and priority</option>${Object.entries(
+    `<div class="section-head"><div><p class="eyebrow">Moving and storage</p><h1>One box at a time.</h1></div><button id="pack-new" class="primary">New box</button></div><div class="actions"><button id="bulk-boxes" class="primary">Create boxes in bulk</button><button id="box-batches" class="secondary">Box batches</button><button id="prepare-tags">Prepare tags</button><button id="packing-scan">Scan next box</button><button id="manage-locations" class="secondary">Locations and moves</button><button id="printer-panel" class="secondary">Printer and queue</button><button id="manifest" class="secondary">Moving manifest</button><button id="recent" class="secondary">Recent changes</button></div><div class="pack-filters"><label>Show<select id="pack-filter"><option value="">All boxes</option><option value="packing">Still packing</option><option value="priority">Essentials and priority</option>${Object.entries(
       packingNames,
     )
       .map(([k, v]) => `<option value="${k}">${v}</option>`)
@@ -50,6 +50,8 @@ async function renderPacking() {
         "",
       )}</select></label><label>Find a box, item or room<input id="pack-search" type="search"></label></div><div id="pack-selection"></div><div id="pack-boxes" class="grid"></div>`;
   $("#pack-new").onclick = guard(() => boxEditor());
+  $("#bulk-boxes").onclick = guard(bulkBoxesPanel);
+  $("#box-batches").onclick = guard(boxBatchesPanel);
   $("#prepare-tags").onclick = guard(tagPanel);
   $("#packing-scan").onclick = () => scanAny();
   $("#manage-locations").onclick = guard(locationsPanel);
@@ -100,9 +102,11 @@ async function renderPacking() {
   const selection = () => {
     const ids = [...boxSelection].filter((id) => tub(id));
     $("#pack-selection").innerHTML = ids.length
-      ? `<p>${ids.length} selected</p><div class="actions"><button id="print-boxes">Print labels</button><button id="move-boxes">Move selected</button><button id="clear-boxes" class="secondary">Clear</button></div>`
+      ? `<p>${ids.length} selected</p><div class="actions"><button id="paper-boxes">Download A4 labels</button><button id="print-boxes">Brother labels</button><button id="name-boxes" class="secondary">Name unnamed boxes</button><button id="move-boxes">Move selected</button><button id="clear-boxes" class="secondary">Clear</button></div>`
       : "";
     if (ids.length) {
+      $("#paper-boxes").onclick = guard(() => paperSelection(ids));
+      $("#name-boxes").onclick = guard(() => nameSelectedBoxes(ids));
       $("#print-boxes").onclick = guard(() =>
         printLabels(ids.map((id) => "box:" + id)),
       );
@@ -124,7 +128,7 @@ async function boxEditor(id = null, tag = null) {
   let current = id
     ? await api("containers/" + id)
     : {
-        code: tag?.code || "",
+        code: "",
         name: "",
         revision: 0,
         packing_state: "empty",
@@ -139,7 +143,7 @@ async function boxEditor(id = null, tag = null) {
   let key = saved?.operation_id || crypto.randomUUID();
   let submittedPayload = saved?.submitted_payload || null;
   modal(
-    `<p class="eyebrow">${tag ? "Prepared tag " + esc(tag.code) : "Packing"}</p><h2>${id ? esc(current.code) : "New box"}</h2>${saved ? '<p role="status">Recovered a local draft. It has not been synchronised.</p>' : ""}<form id="box-form">${!id ? `<label>Box code<input name="code" value="${esc(c.code)}" placeholder="Leave empty for an automatic code" maxlength="24"></label>` : ""}<label>Short title, optional<input name="name" value="${esc(c.name)}" maxlength="160"></label><label>Whole box contents<textarea name="description">${esc(c.description)}</textarea></label><label>Photo<input id="packing-photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><div id="packing-photo-preview">${c.photo?.startsWith("data:") ? `<img class="preview" src="${c.photo}" alt="Draft box photo">` : current.photo ? `<img class="preview" src="${thumb(current.photo)}" alt="Box photo">` : ""}</div><label>Current physical location<select name="physical_location_id">${options(places, c.physical_location_id, "Not set")}</select></label><label>Inside another box<select name="parent_id">${options(
+    `<p class="eyebrow">${tag ? "Prepared tag " + esc(tag.code) : "Packing"}</p><h2>${id ? esc(current.code) : "New box"}</h2>${saved ? '<p role="status">Recovered a local draft. It has not been synchronised.</p>' : ""}<form id="box-form">${!id ? `<label>Box code<input name="code" value="${esc(c.code)}" placeholder="Leave empty for an automatic code" maxlength="24"></label>` : ""}<label>Box name<input name="name" value="${esc(c.name)}" placeholder="Random given name when left empty" maxlength="160"></label><label>Whole box contents<textarea name="description">${esc(c.description)}</textarea></label><label>Photo<input id="packing-photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><div id="packing-photo-preview">${c.photo?.startsWith("data:") ? `<img class="preview" src="${c.photo}" alt="Draft box photo">` : current.photo ? `<img class="preview" src="${thumb(current.photo)}" alt="Box photo">` : ""}</div><label>Current physical location<select name="physical_location_id">${options(places, c.physical_location_id, "Not set")}</select></label><label>Inside another box<select name="parent_id">${options(
       tubs.filter((b) => b.id !== id),
       c.parent_id,
       "No parent box",
@@ -152,7 +156,7 @@ async function boxEditor(id = null, tag = null) {
       )
       .join(
         "",
-      )}</select></label><div class="actions">${["fragile", "heavy", "priority"].map((f) => `<label class="check"><input type="checkbox" name="${f}" ${c[f] ? "checked" : ""}>${f === "priority" ? "Priority unpacking" : f[0].toUpperCase() + f.slice(1)}</label>`).join("")}</div><details><summary>Storage details</summary><label>Category<input name="category" value="${esc(c.category)}"></label><label>Keywords<input name="keywords" value="${esc(c.keywords)}"></label><label>Storage notes<textarea name="storage_notes">${esc(c.storage_notes)}</textarea></label><label>Review date, optional<input name="review_date" type="date" value="${esc(c.review_date)}"></label></details><p id="box-draft-status" role="status">Draft saves on this device as you type.</p><button id="box-save" class="primary full">Save box</button><p id="form-error" role="alert"></p></form>${id ? '<div class="actions"><button id="box-label">Print label</button><button id="box-tags" class="secondary">Tags</button><button id="box-history" class="secondary">History</button></div>' : ""}`,
+      )}</select></label><div class="actions">${["fragile", "heavy", "priority"].map((f) => `<label class="check"><input type="checkbox" name="${f}" ${c[f] ? "checked" : ""}>${f === "priority" ? "Priority unpacking" : f[0].toUpperCase() + f.slice(1)}</label>`).join("")}</div><details><summary>Storage details</summary><label>Category<input name="category" value="${esc(c.category)}"></label><label>Keywords<input name="keywords" value="${esc(c.keywords)}"></label><label>Storage notes<textarea name="storage_notes">${esc(c.storage_notes)}</textarea></label><label>Review date, optional<input name="review_date" type="date" value="${esc(c.review_date)}"></label></details><p id="box-draft-status" role="status">Draft saves on this device as you type.</p><button id="box-save" class="primary full">Save box</button><p id="form-error" role="alert"></p></form>${id ? '<div class="actions"><button id="box-paper">Download A4 labels</button><button id="box-label">Brother label</button><button id="box-tags" class="secondary">Tags</button><button id="box-history" class="secondary">History</button></div>' : ""}`,
   );
   let photoData = c.photo?.startsWith("data:") ? c.photo : "";
   const value = () => {
@@ -203,9 +207,6 @@ async function boxEditor(id = null, tag = null) {
     e.preventDefault();
     await retain();
     const p = submittedPayload || value();
-    if (!id && !p.code)
-      p.code =
-        tag?.code || "B" + key.replaceAll("-", "").slice(0, 8).toUpperCase();
     if (!navigator.onLine)
       throw Error(
         "Offline. Draft retained here. Reconnect and save to confirm this shared change.",
@@ -224,16 +225,12 @@ async function boxEditor(id = null, tag = null) {
           {
             action: "assign",
             revision: tag.revision,
-            create_box: { ...p, code: p.code || tag.code },
+            create_box: p,
           },
           key,
         );
         box = await api("containers/" + out.tag.container_id);
       } else {
-        p.code =
-          p.code ||
-          "B" +
-            crypto.randomUUID().replaceAll("-", "").slice(0, 8).toUpperCase();
         out = await api("containers", p, key);
         box = out.created[0].record;
       }
@@ -244,7 +241,7 @@ async function boxEditor(id = null, tag = null) {
       );
       await refresh();
       modal(
-        `<h2>${esc(box.code)} saved</h2><p>Saved on the server. Ready for the next step.</p><div class="actions"><button id="saved-add" class="primary">Add items and photos</button><button id="saved-print">Print label</button><button id="saved-scan">Scan next box</button><button id="saved-pack" class="secondary">Packing view</button></div>`,
+        `<h2>${esc(box.name)} · ${esc(box.code)} saved</h2><p>Saved on the server. Ready for the next step.</p><div class="actions"><button id="saved-add" class="primary">Add items and photos</button><button id="saved-print">Print label</button><button id="saved-scan">Scan next box</button><button id="saved-pack" class="secondary">Packing view</button></div>`,
       );
       $("#saved-add").onclick = () => {
         closeDialog();
@@ -293,6 +290,7 @@ async function boxEditor(id = null, tag = null) {
     }
   });
   if (id) {
+    $("#box-paper").onclick = guard(() => paperSelection([id]));
     $("#box-label").onclick = guard(() => printLabels(["box:" + id]));
     $("#box-tags").onclick = guard(() => boxTags(id));
     $("#box-history").onclick = guard(() => recentPanel(id));
@@ -563,18 +561,11 @@ async function printLabels(refs) {
   if (!refs.length) throw Error("Select at least one label");
   const p = await api("printer");
   modal(
-    `<h2>Print labels</h2><p>${refs.length} labels · ${p.tape_mm} mm tape · ${p.print_height_mm} mm printable height · ${p.dpi} dpi</p><p>Preview is the raster sent to the printer. Use the PNG in P touch Editor or the exact size SVG when direct printing is unavailable.</p><img id="print-preview" class="label-preview" src="/api/label-preview?ref=${encodeURIComponent(refs[0])}" alt="Actual label preview"><label>Copies of each label<input id="label-copies" type="number" value="1" min="1" max="20"></label><label class="check"><input id="label-title" type="checkbox">Include short title</label><div class="actions"><button id="queue-labels" class="primary">Queue labels</button><a id="png-export" href="/api/label-preview?ref=${encodeURIComponent(refs[0])}&download=1">Download PNG</a><a id="svg-export" href="/api/label-preview?ref=${encodeURIComponent(refs[0])}&format=svg">Exact size SVG</a><button id="labels-queue" class="secondary">Printer and queue</button></div><p id="form-error" role="alert"></p>`,
+    `<h2>Print labels</h2><p>${refs.length} labels · ${p.tape_mm} mm tape · ${p.print_height_mm} mm printable height · ${p.dpi} dpi</p><p>Preview is the raster sent to the printer. Use the PNG in P touch Editor or the exact size SVG when direct printing is unavailable.</p><img id="print-preview" class="label-preview" src="/api/label-preview?ref=${encodeURIComponent(refs[0])}" alt="Actual label preview"><label>Copies of each label<input id="label-copies" type="number" value="1" min="1" max="20"></label><p>Saved box names are included on every box label.</p><div class="actions"><button id="queue-labels" class="primary">Queue labels</button><a id="png-export" href="/api/label-preview?ref=${encodeURIComponent(refs[0])}&download=1">Download PNG</a><a id="svg-export" href="/api/label-preview?ref=${encodeURIComponent(refs[0])}&format=svg">Exact size SVG</a><button id="labels-queue" class="secondary">Printer and queue</button></div><p id="form-error" role="alert"></p>`,
   );
   const key = crypto.randomUUID();
   let submitted = false,
     printPlan = null;
-  $("#label-title").onchange = () => {
-    const tail = "&title=" + ($("#label-title").checked ? "1" : "0");
-    $("#print-preview").src =
-      "/api/label-preview?ref=" + encodeURIComponent(refs[0]) + tail;
-    $("#png-export").href = $("#print-preview").src + "&download=1";
-    $("#svg-export").href = $("#print-preview").src + "&format=svg";
-  };
   $("#queue-labels").onclick = guard(async () => {
     if (submitted) return;
     submitted = true;
@@ -583,9 +574,8 @@ async function printLabels(refs) {
       const copies = printPlan?.copies || Number($("#label-copies").value);
       if (!Number.isInteger(copies) || copies < 1 || copies > 20)
         throw Error("Choose 1 to 20 copies");
-      printPlan ||= { copies, include_title: $("#label-title").checked };
+      printPlan ||= { copies, include_title: true };
       $("#label-copies").disabled = true;
-      $("#label-title").disabled = true;
       let j;
       const chunkSize = Math.floor(50 / copies);
       for (let offset = 0; offset < refs.length; offset += chunkSize)

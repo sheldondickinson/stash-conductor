@@ -9,7 +9,6 @@ from datetime import timedelta
 from difflib import SequenceMatcher
 from functools import wraps
 
-import qrcode
 from django.conf import settings
 from django.contrib.auth.models import User
 from django.core.exceptions import ObjectDoesNotExist, ValidationError
@@ -271,26 +270,24 @@ def containers(r):
     if type(count) is not int or not 1 <= count <= 50:
         raise Problem("Batch size must be 1–50")
     code = text(p.get("code", ""), 24).upper()
-    if not re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{0,23}", code):
+    if code and not re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{0,23}", code):
         raise Problem("Use a short code with letters, numbers, _ or -")
-    if count > 1 and not re.search(r"\d+$", code):
+    if count > 1 and code and not re.search(r"\d+$", code):
         raise Problem("Batch start code must end in a number")
-    from .moving import apply_box
+    from .box_allocation import create_box
+    from .box_names import NameAllocator
 
     out = []
+    allocator = NameAllocator([text(p.get("name", ""), 160)])
     for n in range(count):
         name = code
-        if n:
+        if n and code:
             m = re.search(r"(\d+)$", code)
             name = code[: m.start()] + str(int(m[0]) + n).zfill(len(m[0]))
-        c = Container.objects.create(
-            code=name,
-            name=text(p.get("name", ""), 160),
-            location=text(p.get("location", ""), 300),
-            photo=photo(p.get("photo", "")) if n == 0 else "",
+        c = create_box(
+            {**p, "code": name, "photo": p.get("photo", "") if n == 0 else ""},
+            allocator,
         )
-        apply_box(c, p)
-        c.save()
         out.append(event(r, "container", c, "create", {}))
     return {"created": out}
 
@@ -559,16 +556,37 @@ def media(r, name):
 @api
 def label(r, code):
     c = Container.objects.get(code=code)
-    out = io.BytesIO()
-    qrcode.make(settings.ORIGIN + "/c/" + c.code).save(out, format="PNG")
-    return HttpResponse(out.getvalue(), content_type="image/png")
+    from .paper_labels import box_label
+    from .printing import png
+
+    return HttpResponse(png(box_label(c), 24), content_type="image/png")
 
 
 @api
 def export(r):
     owner(r)
     return {
-        "version": 2,
+        "version": 3,
+        "box_batches": list(
+            __import__(
+                "inventory.models", fromlist=["BoxBatch"]
+            ).BoxBatch.objects.values("id", "name", "defaults", "created")
+        ),
+        "box_batch_members": list(
+            __import__(
+                "inventory.models", fromlist=["BoxBatchMember"]
+            ).BoxBatchMember.objects.values("batch_id", "box_id", "position")
+        ),
+        "box_codes": list(
+            __import__(
+                "inventory.models", fromlist=["BoxCode"]
+            ).BoxCode.objects.values_list("code", flat=True)
+        ),
+        "box_sequence": list(
+            __import__(
+                "inventory.models", fromlist=["BoxSequence"]
+            ).BoxSequence.objects.values()
+        ),
         "locations": [
             __import__("inventory.moving", fromlist=["ldata"]).ldata(x)
             for x in __import__(

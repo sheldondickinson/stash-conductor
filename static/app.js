@@ -174,11 +174,19 @@ function renderFind() {
       "Put it anywhere.<br>Find it when you need it.",
       "Your shared workshop memory, one small tidy at a time.",
     ) +
-    `<div class="searchbox"><input id="search" type="search" placeholder="Try ‘blue board’ or ‘bag of screws’" aria-label="Search inventory" autocomplete="off"></div><div class="section-head"><h2>Your stash</h2><span id="result-count" class="muted">${items.length} records</span></div><div id="selection"></div><div id="results" class="grid">${items.map(itemCard).join("")}</div>${!items.length ? empty() : ""}`;
+    `<div class="searchbox"><input id="search" type="search" placeholder="Try ‘blue board’ or ‘bag of screws’" aria-label="Search inventory" autocomplete="off"></div><div class="section-head"><h2>Your stash</h2><span id="result-count" class="muted">${items.length} records</span></div><div id="box-search-results" class="grid"></div><div id="selection"></div><div id="results" class="grid">${items.map(itemCard).join("")}</div>${!items.length && !tubs.length ? empty() : ""}`;
   bindCards();
   renderSelection();
   if ($("#empty-start"))
     $("#empty-start").onclick = () => (tubs.length ? nav("add") : newTub());
+  const boxResults = (query) => {
+    const terms = query.trim().toLocaleLowerCase().split(/\s+/);
+    const boxes = tubs.filter((c) => terms.every((term) => [c.code, c.name, c.effective_location, c.destination].join(" ").toLocaleLowerCase().includes(term)));
+    $("#box-search-results").innerHTML = boxes.map((c) => `<article class="card"><h3>${esc(c.name || "Box")} · ${esc(c.code)}</h3><p>${esc(c.effective_location || "Location not set")}</p><button data-search-box="${c.id}" class="secondary full">Open box</button></article>`).join("");
+    document.querySelectorAll("[data-search-box]").forEach((button) => button.onclick = guard(() => boxEditor(button.dataset.searchBox)));
+    return boxes.length;
+  };
+  boxResults("");
   let timer;
   $("#search").oninput = () => {
     clearTimeout(timer);
@@ -188,7 +196,7 @@ function renderFind() {
         const out = await api("items?q=" + encodeURIComponent(q));
         if ($("#search")?.value !== q) return;
         $("#results").innerHTML = out.items.map(itemCard).join("");
-        $("#result-count").textContent = out.items.length + " results";
+        $("#result-count").textContent = out.items.length + boxResults(q) + " results";
         bindCards();
       } catch (e) {
         notice(e.message, true);
@@ -250,7 +258,8 @@ async function captureForm() {
     created: Date.now(),
   };
   $("#capture-area").innerHTML =
-    `<div class="tub-banner"><div><small>Adding to</small><br><strong>${esc(c.code)}</strong></div><span>${esc(c.effective_location || c.location || c.name || "Your selected tub")}</span></div><form id="capture-form" class="capture-form"><label class="photo-input">📷 Take a photo or choose one<input id="photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><div id="photo-preview">${currentDraft.photo ? `<img class="preview" src="${currentDraft.photo}" alt="Pending capture">` : ""}</div><label>A rough description is plenty<textarea id="description" placeholder="Mixed cables, little blue board…">${esc(currentDraft.title)}</textarea></label><label>Quantity, if known<input id="capture-quantity" type="number" min="1" value="${currentDraft.quantity || ""}"></label><p class="muted"><small>Use your keyboard microphone to dictate. No category or count needed.</small></p><button class="orange full" id="save-next">Save & next →</button><small id="draft-state">${currentDraft.title || currentDraft.photo ? "Draft retained on this device" : "Photo or words — either is enough."}</small></form>`;
+    `<div class="tub-banner"><div><small>Adding to</small><br><strong>${esc(c.name)} · ${esc(c.code)}</strong><button id="capture-box-location" class="secondary">Set location or box photo</button></div><span>${esc(c.effective_location || c.location || c.name || "Your selected tub")}</span></div><form id="capture-form" class="capture-form"><label class="photo-input">📷 Take a photo or choose one<input id="photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><div id="photo-preview">${currentDraft.photo ? `<img class="preview" src="${currentDraft.photo}" alt="Pending capture">` : ""}</div><label>A rough description is plenty<textarea id="description" placeholder="Mixed cables, little blue board…">${esc(currentDraft.title)}</textarea></label><label>Quantity, if known<input id="capture-quantity" type="number" min="1" value="${currentDraft.quantity || ""}"></label><p class="muted"><small>Use your keyboard microphone to dictate. No category or count needed.</small></p><button class="orange full" id="save-next">Save & next →</button><small id="draft-state">${currentDraft.title || currentDraft.photo ? "Draft retained on this device" : "Photo or words — either is enough."}</small></form>`;
+  $("#capture-box-location").onclick = guard(() => boxEditor(c.id));
   const draft = currentDraft;
   $("#capture-quantity").oninput = async () => {
     draft.quantity = Number($("#capture-quantity").value) || null;
@@ -394,8 +403,10 @@ function renderContainers() {
       "Good things come<br>in ordinary tubs.",
       "Move a tub once. Everything inside follows its location.",
     ) +
-    `<div class="section-head"><h2>${tubs.length} containers</h2><button class="primary" id="new-tub">＋ New tub</button></div><div class="grid">${tubs.map((c) => `<article class="card container-card"><span class="code">${esc(c.code)}</span><h3>${esc(c.name || "Storage tub")}</h3><p class="location">${esc(c.effective_location || c.location || "Set a shelf or location")}</p><small>${items.filter((i) => i.container_id === c.id && i.status === "stored").length} records stored</small><button class="primary full" data-add-tub="${c.id}">Add here</button><button class="secondary full" data-tub="${c.id}">Details & label</button></article>`).join("")}</div>`;
+    `<div class="section-head"><h2>${tubs.length} containers</h2><button class="primary" id="new-tub">＋ New tub</button></div><div class="actions"><button id="container-bulk" class="primary">Create boxes in bulk</button><button id="container-batches">Box batches</button></div><div class="grid">${tubs.map((c) => `<article class="card container-card"><span class="code">${esc(c.code)}</span><h3>${esc(c.name || "Storage tub")}</h3><p class="location">${esc(c.effective_location || c.location || "Set a shelf or location")}</p><small>${items.filter((i) => i.container_id === c.id && i.status === "stored").length} records stored</small><button class="primary full" data-add-tub="${c.id}">Add here</button><button class="secondary full" data-tub="${c.id}">Details & label</button></article>`).join("")}</div>`;
   $("#new-tub").onclick = newTub;
+  $("#container-bulk").onclick = guard(bulkBoxesPanel);
+  $("#container-batches").onclick = guard(boxBatchesPanel);
   document
     .querySelectorAll("[data-add-tub]")
     .forEach((b) => (b.onclick = () => selectTub(tub(b.dataset.addTub).code)));
@@ -404,30 +415,15 @@ function renderContainers() {
     .forEach((b) => (b.onclick = () => showTub(b.dataset.tub)));
 }
 function newTub() {
-  modal(
-    `<p class="eyebrow">Containers</p><h2>Give it a code.</h2><p>A box, a drawer, a tub. Whatever works.</p><form id="tub-form"><label>Code<input name="code" placeholder="B014" maxlength="24" required></label><label>Friendly name · optional<input name="name" placeholder="Little electronics"></label><label>Location · optional<input name="location" placeholder="Workshop / West shelf / Middle"></label><details><summary>Create a batch of labels</summary><label>How many tubs?<input name="count" type="number" value="1" min="1" max="50"></label><p class="muted">Codes increase from your starting number.</p></details><button class="primary full">Create tub</button><p id="form-error" role="alert"></p></form>`,
-  );
-  $("#tub-form").onsubmit = async (e) => {
-    e.preventDefault();
-    const p = Object.fromEntries(new FormData(e.target));
-    p.count = Number(p.count);
-    try {
-      await api("containers", p);
-      await refresh();
-      closeDialog();
-      nav("containers");
-      notice("Containers created. Print their labels when ready.");
-    } catch (e) {
-      $("#form-error").textContent = e.message;
-    }
-  };
+  guard(() => boxEditor())();
 }
 function showTub(id) {
   const c = tub(id);
   modal(
-    `<p class="eyebrow">Container</p><h2>${esc(c.code)}</h2><form id="edit-tub"><label>Name<input name="name" value="${esc(c.name)}"></label><p>Current physical location: ${esc(c.effective_location || c.location || "Not set")}</p><button type="button" id="packing-details" class="secondary">Packing and location details</button>${!c.physical_location_id && !c.parent_id ? `<label>Location note<input name="location" value="${esc(c.location)}"></label>` : ""}<label>Optional tub photo<input id="tub-photo" type="file" accept="image/jpeg,image/png,image/webp"></label><button class="primary full">Save location</button><p id="form-error"></p></form><div class="label-print"><img class="qr" src="/api/label/${encodeURIComponent(c.code)}" alt="QR code for ${esc(c.code)}"><strong class="code">${esc(c.code)}</strong><p>Stash Conductor</p><small>${esc(location.origin + "/c/" + c.code)}</small></div><div class="row no-print"><button id="print" class="secondary">Print label</button><button id="contents" class="secondary">View contents</button><button id="add-here" class="primary">Add here</button></div>`,
+    `<p class="eyebrow">Container</p><h2>${esc(c.code)}</h2><form id="edit-tub"><label>Name<input name="name" value="${esc(c.name)}"></label><p>Current physical location: ${esc(c.effective_location || c.location || "Not set")}</p><button type="button" id="packing-details" class="secondary">Packing and location details</button>${!c.physical_location_id && !c.parent_id ? `<label>Location note<input name="location" value="${esc(c.location)}"></label>` : ""}<label>Optional tub photo<input id="tub-photo" type="file" accept="image/jpeg,image/png,image/webp"></label><button class="primary full">Save location</button><p id="form-error"></p></form><div class="label-print"><img class="label-preview" src="/api/label/${encodeURIComponent(c.code)}" alt="QR code for ${esc(c.code)}"><strong>${esc(c.name)}</strong><strong class="code">${esc(c.code)}</strong><p>Stash Conductor</p><small>${esc(location.origin + "/c/" + c.code)}</small></div><div class="row no-print"><button id="paper-print" class="secondary">Download A4 labels</button><button id="print" class="secondary">Brother label</button><button id="contents" class="secondary">View contents</button><button id="add-here" class="primary">Add here</button></div>`,
   );
   $("#packing-details").onclick = guard(() => boxEditor(c.id));
+  $("#paper-print").onclick = guard(() => paperSelection([c.id]));
   $("#print").onclick = guard(() => printLabels(["box:" + c.id]));
   $("#add-here").onclick = () => {
     closeDialog();
