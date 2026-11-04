@@ -223,6 +223,8 @@ class MovingTests(TestCase):
             .status_code,
             401,
         )
+        self.assertFalse(exchange({"action": "boot"}).json()["armed"])
+        self.assertFalse(exchange({**p, "uid": "04112233445577"}).json()["may_write"])
         Station.objects.filter(pk=sid).update(revoked=True)
         self.assertNotEqual(exchange(p).status_code, 200)
 

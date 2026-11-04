@@ -180,6 +180,12 @@ def reserved(v, s):
 @station_api
 def exchange(s, p):
     action = p.get("action")
+    if action == "boot":
+        s.armed_until = None
+        s.overwrite_uid = ""
+        s.last_result = "Station restarted. Writing is disarmed."
+        s.revision += 1
+        return sdata(s)
     if action == "health":
         return sdata(s)
     uid = p.get("uid", "")

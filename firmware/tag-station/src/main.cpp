@@ -13,8 +13,8 @@
 // Reader wiring avoids USB18/19 and boot strapping GPIO2/8/9.
 constexpr int PIN_CS=7, PIN_RST=10, PIN_SCK=4, PIN_MOSI=6, PIN_MISO=5, PIN_LED=8;
 MFRC522 reader(PIN_CS,PIN_RST); Preferences prefs; JsonDocument cfg;
-String origin,station,credential,rootCA,mode="inspect",lastUID;bool waitingRemoval=false;
-unsigned long lastHealth=0,absentSince=0;bool armed=false;unsigned long lastOnline=0;
+String origin,station,credential,rootCA,mode="encode",lastUID;bool waitingRemoval=false;
+unsigned long lastHealth=0,absentSince=0;bool armed=false,bootReported=false;unsigned long lastOnline=0;
 String pendingUID,pendingReservation,pendingURL;bool pendingWritten=false;
 void light(int n){for(int i=0;i<n;i++){digitalWrite(PIN_LED,LOW);delay(90);digitalWrite(PIN_LED,HIGH);delay(90);}}
 String uidString(){String s;for(byte i=0;i<reader.uid.size;i++){if(reader.uid.uidByte[i]<16)s+='0';s+=String(reader.uid.uidByte[i],HEX);}s.toUpperCase();return s;}
@@ -105,7 +105,7 @@ void ota(const String &expected) {
  while(done<(size_t)length&&millis()-last<15000){size_t available=stream->available();if(!available){delay(5);continue;}size_t n=stream->readBytes(buffer,std::min(sizeof(buffer),available));if(!n)break;last=millis();mbedtls_sha256_update_ret(&hash,buffer,n);if(Update.write(buffer,n)!=n)break;done+=n;}
  byte digest[32];mbedtls_sha256_finish_ret(&hash,digest);mbedtls_sha256_free(&hash);String actual;for(byte b:digest){if(b<16)actual+='0';actual+=String(b,HEX);}http.end();
  if(done!=(size_t)length||actual!=expected){Update.abort();Serial.println("Firmware length or SHA256 failed. Existing firmware retained.");return;}
- if(Update.end(true)){Serial.println("Verified firmware installed; restarting in inspect mode.");delay(200);ESP.restart();}else Serial.println("Update failed.");
+ if(Update.end(true)){Serial.println("Verified firmware installed; restarting disarmed.");delay(200);ESP.restart();}else Serial.println("Update failed.");
 }
 void serialCommand(){
  if(!Serial.available())return;
@@ -123,10 +123,13 @@ void setup(){Serial.begin(115200);Serial.setTimeout(1500);digitalWrite(PIN_LED,H
  origin=cfg["origin"].as<String>();station=cfg["station_id"].as<String>();credential=cfg["credential"].as<String>();rootCA=cfg["ca_pem"].as<String>();
  SPI.begin(PIN_SCK,PIN_MISO,PIN_MOSI,PIN_CS);reader.PCD_Init();byte chip=reader.PCD_ReadRegister(MFRC522::VersionReg);Serial.printf("Reader version: 0x%02x. Confirm XC4506 chipset before commissioning.\n",chip);
  if(chip!=0x91&&chip!=0x92){Serial.println("Unrecognised reader; writing disabled.");while(true){serialCommand();delay(20);}}
- WiFi.mode(WIFI_STA);if(!cfg["ssid"].as<String>().isEmpty())WiFi.begin(cfg["ssid"].as<const char*>(),cfg["wifi_password"].as<const char*>());configTime(0,0,"pool.ntp.org");
+ WiFi.mode(WIFI_STA);if(!cfg["ssid"].as<String>().isEmpty())WiFi.begin(cfg["ssid"].as<const char*>(),cfg["wifi_password"].as<const char*>());configTime(0,0,cfg["ntp_server"] | "pool.ntp.org");
 }
 void loop(){serialCommand();
- if(millis()-lastHealth>10000){lastHealth=millis();JsonDocument q,r;q["action"]="health";armed=call(q,r)&&r["armed"].as<bool>()&&mode=="encode";}
+ if(millis()-lastHealth>10000){lastHealth=millis();JsonDocument q,r;
+  if(!bootReported){q["action"]="boot";bootReported=call(q,r);armed=false;}
+  else {q["action"]="health";armed=call(q,r)&&r["armed"].as<bool>()&&mode=="encode";}
+ }
  if(waitingRemoval){
   // WUPA sees the same halted tag. Require sustained absence before accepting another.
   byte atqa[2],size=2;auto status=reader.PICC_WakeupA(atqa,&size);

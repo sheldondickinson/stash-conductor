@@ -39,11 +39,13 @@ Use a data capable USB cable. If first upload does not enter download mode, hold
 
 Dependencies are pinned in `platformio.ini`. The selected Arduino core uses a dual OTA partition layout. Build outputs include firmware, bootloader and partition images; use PlatformIO's uploader for first flash, not the application image alone.
 
-In Stash, create a station as the owner. Save the one time station credential in a protected local file. Provision one compact JSON line over USB serial containing `origin`, `station_id`, `credential`, `ssid`, `wifi_password` and `ca_pem`. `origin` must be the deployed HTTPS origin. `ca_pem` must contain the independently trusted public root certificate(s) needed to validate that hostname, with escaped newlines in JSON. Do not use an unverified certificate fetched from the same untrusted connection. No credential is compiled into firmware or echoed by setup. The station stores its limited credential in ESP32 NVS; flash encryption is not configured, so physical device access requires revocation if lost.
+In Stash, create a station as the owner. Save the one time station credential in a protected local file. Provision one compact JSON line over USB serial containing `origin`, `station_id`, `credential`, `ssid`, `wifi_password`, `ntp_server` and `ca_pem`. `origin` must be the deployed HTTPS origin. `ca_pem` must contain the independently trusted public root certificate(s) needed to validate that hostname, with escaped newlines in JSON. Do not use an unverified certificate fetched from the same untrusted connection. No credential is compiled into firmware or echoed by setup. The station stores its limited credential in ESP32 NVS; flash encryption is not configured, so physical device access requires revocation if lost.
 
-Connect to the approved IoT SSID. Allow only DNS and time synchronisation to the established infrastructure and HTTPS to Stash. This implementation uses an outbound HTTPS API with a revocable station credential, no inbound setup server and no household password. It makes no VLAN changes. Verify the actual firewall rules and DHCP placement during commissioning.
+Set `ntp_server` to the approved local time server; the fallback is `pool.ntp.org`. Connect to the approved IoT SSID. Allow only DNS and time synchronisation to the established infrastructure and HTTPS to Stash. This implementation uses an outbound HTTPS API with a revocable station credential, no inbound setup server and no household password. It makes no VLAN changes. Verify the actual firewall rules and DHCP placement during commissioning.
 
-The station starts in `inspect`. Serial commands are `inspect`, `verify`, and `encode`. Inspect and verify both parse without writing. Select `encode`, choose a batch in Stash and explicitly arm the station for five minutes. Switching modes or restarting disarms the local writing path until the next positive server health check; server arming alone does not select encode mode.
+On boot the station reports its restart and disarms its server allocation path. Once it appears connected, select a batch in Stash and explicitly arm it for five minutes. Normal batches need no USB command after setup. Every physical write still requires a fresh successful armed response and reservation.
+
+Optional serial commands `inspect` and `verify` both parse without writing, even if someone arms the station in Stash. `encode` restores normal server controlled operation. Switching modes disarms locally until the next positive health check. A restart clears the previous server arm and preserves any outstanding reservation.
 
 ## Encoding and recovery
 
@@ -59,7 +61,7 @@ After interruption, remove and present the same tag in encode mode. If its URL a
 
 ## Deliberate outbound OTA
 
-Stage the reviewed `firmware.bin` on the backend at `STASH_STATION_FIRMWARE`, normally a read only mount at `/run/stash-station/firmware.bin`. Record its SHA256 independently. Disarm and resolve outstanding reservations. Over USB serial issue `ota SHA256`. The station downloads only its fixed authenticated firmware endpoint over validated HTTPS, checks length and SHA256, then commits the OTA partition and restarts in inspect mode. A mismatch aborts the update. There is no public inbound OTA port. This OTA implementation is compiled, but physical OTA and rollback behaviour still require commissioning.
+Stage the reviewed `firmware.bin` on the backend at `STASH_STATION_FIRMWARE`, normally a read only mount at `/run/stash-station/firmware.bin`. Record its SHA256 independently. Disarm and resolve outstanding reservations. Over USB serial issue `ota SHA256`. The station downloads only its fixed authenticated firmware endpoint over validated HTTPS, checks length and SHA256, then commits the OTA partition and restarts disarmed. A mismatch aborts the update. There is no public inbound OTA port. This OTA implementation is compiled, but physical OTA and rollback behaviour still require commissioning.
 
 ## Physical checks before a batch
 
