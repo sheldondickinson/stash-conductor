@@ -33,3 +33,5 @@ Skip preserves the pending identity for later resumption. Export the batch JSON 
 On supported iPhones, a background NDEF HTTPS read displays a notification. Tapping it opens the associated app or Safari. An installed PWA launch is not guaranteed. The dependable route is HTTPS, login, then the original tag or box path. No `webapp://` URL or per box Shortcut is required. Real cold/warm iPhone and mobile data checks remain commissioning tests.
 
 Sources: [NFC Tools for iOS](https://www.wakdev.com/en/apps/nfc-tools-ios.html), [Apple background NFC](https://developer.apple.com/documentation/CoreNFC/adding-support-for-background-tag-reading).
+
+Prepare twelve empty named boxes at once with **Create boxes in bulk**, then cut out paired A4 labels. See [paper label guide](paper-labels.md).

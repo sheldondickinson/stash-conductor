@@ -50,6 +50,45 @@ class Location(models.Model):
     revision = models.PositiveIntegerField(default=1)
 
 
+class BoxSequence(models.Model):
+    id = models.PositiveSmallIntegerField(primary_key=True, default=1)
+    next_number = models.PositiveBigIntegerField(default=1)
+
+
+class BoxCode(models.Model):
+    # Permanent reservations also survive any future archival/deletion workflow.
+    code = models.CharField(primary_key=True, max_length=24)
+
+
+class BoxBatch(models.Model):
+    id = models.UUIDField(primary_key=True, default=uuid.uuid4, editable=False)
+    request_id = models.UUIDField(unique=True)
+    request_digest = models.CharField(max_length=64)
+    actor = models.ForeignKey(User, on_delete=models.PROTECT)
+    name = models.CharField(max_length=160, blank=True)
+    defaults = models.JSONField(default=dict)
+    created = models.DateTimeField(auto_now_add=True)
+
+
+class BoxBatchMember(models.Model):
+    batch = models.ForeignKey(
+        BoxBatch, on_delete=models.PROTECT, related_name="members"
+    )
+    box = models.ForeignKey(Container, on_delete=models.PROTECT)
+    position = models.PositiveIntegerField()
+
+    class Meta:
+        ordering = ["position"]
+        constraints = [
+            models.UniqueConstraint(
+                fields=["batch", "box"], name="box_batch_membership"
+            ),
+            models.UniqueConstraint(
+                fields=["batch", "position"], name="box_batch_position"
+            ),
+        ]
+
+
 def tag_token():
     return secrets.token_urlsafe(16)
 

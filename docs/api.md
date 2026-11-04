@@ -59,3 +59,11 @@ The same household authentication, CSRF, per user idempotency receipts and revis
 Box payloads additionally accept `physical_location_id`, `parent_id`, `destination`, `description`, `packing_state`, `fragile`, `heavy`, `priority`, `category`, `keywords`, `storage_notes` and `review_date`. Physical location and parent containment are distinct from the destination room. Revision conflicts never silently overwrite another person's changes.
 
 Station credentials are separate from household API tokens. POST `/api/station/{uuid}/exchange` accepts only boot disarming, health, inspect, reserve and exact readback verification under its revocable Bearer credential. Allocation requires a deliberately armed batch. Reserved URLs and UIDs survive retries and are never recycled. GET `/api/station/{uuid}/firmware` exposes only the operator staged binary to that station identity. Neither endpoint grants inventory reads or arbitrary job instructions. See the [station protocol and commissioning guide](tag-station.md).
+
+## Paper box batches
+
+`GET /api/box-preview?count=12` returns unreserved names, codes and page count. `POST /api/box-batches` accepts `request_id` (UUID), `count` (1 to 240), optional `name`, `physical_location_id`, `destination`, `proposed_names` and `name_overrides` keyed by zero based position. Use the same UUID as Idempotency-Key and retain the identical payload for retry. The response contains committed boxes and batch ID. Codes are allocated by the server.
+
+`GET /api/box-batches?q=...` lists up to 100 matching batches; `GET /api/box-batches/<uuid>` returns saved membership and current names. `GET /api/box-batches/<uuid>/labels.pdf` downloads pairs without creating records. `GET /api/box-labels.pdf?codes=B001,B002` prints selected existing boxes only, maximum 240. PDF failures return 503 with retry guidance and leave creation committed. All endpoints use existing household authentication.
+
+`POST /api/name-unnamed-boxes` accepts `boxes: [{id, revision}]` and names only currently unnamed selections atomically. Ordinary `POST /api/containers` and tag `create_box` share the server name and code allocator when fields are blank. Explicit names and valid unused manual codes remain supported. Inventory JSON version 3 adds box batches, membership and allocation metadata. Backups include these database tables automatically.

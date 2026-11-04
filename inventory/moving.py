@@ -10,7 +10,7 @@ from django.conf import settings
 from django.db.models import Q
 from django.http import HttpResponse
 
-from .api import Problem, api, cdata, event, photo, revision, text
+from .api import Problem, api, cdata, event, revision, text
 from .models import Container, Event, Location, Tag, TagBatch
 
 STATES = ("empty", "partly_packed", "sealed", "in_transit", "stored", "unpacked")
@@ -272,15 +272,9 @@ def tags(r, token=None):
             if t.container_id or t.location_id:
                 raise Problem("Tag already assigned", 409)
             b = p["create_box"]
-            code = text(b.get("code", t.code), 24).upper()
-            import re
+            from .box_allocation import create_box
 
-            if not re.fullmatch(r"[A-Z0-9][A-Z0-9_-]{0,23}", code):
-                raise Problem("Invalid box code")
-            box = Container(code=code, name=text(b.get("name", ""), 160))
-            apply_box(box, b)
-            box.photo = photo(b.get("photo", ""))
-            box.save()
+            box = create_box(b)
             event(r, "container", box, "create", {})
             t.container = box
             t.location = None

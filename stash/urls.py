@@ -4,7 +4,7 @@ from django.shortcuts import redirect, render
 from django.urls import path
 from django.views.decorators.csrf import ensure_csrf_cookie
 
-from inventory import api, auth, moving, printing, stations
+from inventory import api, auth, box_batches, moving, printing, stations
 
 
 @ensure_csrf_cookie
@@ -29,7 +29,7 @@ def sw(request):
 
 
 urlpatterns = [
-    path("health", lambda r: JsonResponse({"status": "ok", "version": "0.2.0"})),
+    path("health", lambda r: JsonResponse({"status": "ok", "version": "0.3.0"})),
     path("auth/login", auth.signin),
     path("auth/callback", auth.callback),
     path("auth/logout", auth.signout),
@@ -37,6 +37,12 @@ urlpatterns = [
     path("api/me", api.me),
     path("api/containers", api.containers),
     path("api/containers/<uuid:pk>", api.container_detail),
+    path("api/box-preview", box_batches.preview),
+    path("api/box-batches", box_batches.batches),
+    path("api/box-batches/<uuid:pk>", box_batches.batches),
+    path("api/box-batches/<uuid:pk>/labels.pdf", box_batches.labels),
+    path("api/box-labels.pdf", box_batches.labels),
+    path("api/name-unnamed-boxes", box_batches.name_unnamed),
     path("api/items", api.items),
     path("api/items/<uuid:pk>", api.item_detail),
     path("api/bulk", api.bulk),

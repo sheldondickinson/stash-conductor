@@ -36,8 +36,8 @@ See [authentication](docs/authentication.md). `AUTH_MODE=oidc` completely disabl
 
 ## Daily use
 
-1. Create a container such as B014 and optionally enter its shelf/location. Print its QR label.
-2. Scan or select the tub. The large **Adding to B014** heading stays visible.
+1. Use **Pack → Create boxes in bulk** for twelve empty named boxes and a paired A4 label sheet, or create one box with an automatic code and given name. Initial location is optional.
+2. Scan or select the box. Its saved name and permanent code stay visible while adding contents.
 3. Take a photo, enter a rough description, or dictate using the keyboard. Save & next.
 4. Find by description, alias, visible marking or confirmed metadata. Open a result for take-out, return, move, corrections and history.
 
@@ -47,6 +47,7 @@ Unsent drafts remain in IndexedDB under the signed-in user's namespace, bound to
 
 ## Operations and development
 
+- [Bulk boxes and A4 paper labels](docs/paper-labels.md)
 - [API contract](docs/api.md)
 - [Backup, restore and portable imports](docs/operations.md)
 - [iPhone, QR, NFC and OpenTub checklist](docs/iphone.md)

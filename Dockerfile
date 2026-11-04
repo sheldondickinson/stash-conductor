@@ -15,4 +15,4 @@ COPY --from=printer-build /stash-print-bridge /usr/local/bin/stash-print-bridge
 RUN SECRET_KEY=build-only-not-a-runtime-secret python manage.py collectstatic --noinput && mkdir -p /data && chown 10001:10001 /data
 USER 10001:10001
 EXPOSE 8000
-CMD ["sh","-c","python manage.py migrate --noinput && exec gunicorn stash.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 2 --timeout 60 --access-logfile /dev/null --no-control-socket"]
+CMD ["sh","-c","python manage.py migrate --noinput && exec gunicorn stash.wsgi:application --bind 0.0.0.0:8000 --workers 2 --threads 2 --timeout 60 --limit-request-line 8190 --access-logfile /dev/null --no-control-socket"]

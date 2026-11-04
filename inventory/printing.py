@@ -37,16 +37,15 @@ def definition(ref, title=False):
             raise Problem("Retired or lost tags cannot be printed")
         return {
             "code": t.code,
-            "title": t.container.name if title and t.container else "",
+            "title": t.container.name if t.container else "",
+            "box_code": t.container.code if t.container else "",
             "url": tdata(t)["url"],
         }
     if kind == "box":
         c = Container.objects.get(pk=code)
-        return {
-            "code": c.code,
-            "title": c.name if title else "",
-            "url": settings.ORIGIN + "/c/" + c.code,
-        }
+        from .paper_labels import box_label
+
+        return box_label(c)
     raise Problem("Choose a box or tag")
 
 
@@ -85,12 +84,25 @@ def label_image(label, tape=24):
     while size > 12 and draw.textlength(label["code"], font=font(size)) > width - x - 4:
         size -= 1
     draw.text((x, 9), label["code"], font=font(size), fill=0)
-    title = label.get("title", "")
-    while title and draw.textlength(title, font=font(16)) > width - x - 4:
-        title = title[:-1]
+    title = " ".join(label.get("title", "").split())
+    title_size = 28
+    while (
+        title_size > 16
+        and draw.textlength(title, font=font(title_size)) > width - x - 4
+    ):
+        title_size -= 1
+    if draw.textlength(title, font=font(title_size)) > width - x - 4:
+        while (
+            title
+            and draw.textlength(title + "…", font=font(title_size)) > width - x - 4
+        ):
+            title = title[:-1]
+        title += "…"
     if title:
-        draw.text((x, 57), title, font=font(16), fill=0)
-    draw.text((x, h - 20), "Stash Conductor", font=font(13), fill=0)
+        draw.text((x, 55), title, font=font(title_size), fill=0)
+    footer = label.get("box_code", "")
+    footer = footer + " · Stash" if footer else "Stash Conductor"
+    draw.text((x, h - 20), footer, font=font(13), fill=0)
     return im
 
 
