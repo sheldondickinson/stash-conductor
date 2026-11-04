@@ -196,6 +196,9 @@ def cdata(c):
         if c.physical_location_id
         else None,
         "parent_id": str(c.parent_id) if c.parent_id else None,
+        "tag_codes": list(
+            c.tag_set.filter(state="active").values_list("code", flat=True)
+        ),
         "effective_location": __import__(
             "inventory.moving", fromlist=["whereabouts"]
         ).whereabouts(c),
@@ -529,6 +532,7 @@ def undo(r, pk):
                 "created",
                 "suggestions",
                 "effective_location",
+                "tag_codes",
             ):
                 setattr(obj, f, v)
     obj.revision += 1

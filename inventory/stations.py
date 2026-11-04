@@ -33,6 +33,12 @@ def sdata(s):
         "last_result": s.last_result,
         "print_after": s.print_after,
         "revision": s.revision,
+        "reservations": [
+            {"id": str(v.id), "code": v.tag.code, "uid": v.uid, "state": v.state}
+            for v in s.encodingreservation_set.select_related("tag").order_by(
+                "-created"
+            )[:20]
+        ],
     }
 
 
@@ -77,6 +83,21 @@ def stations(r, pk=None):
         if not s.armed_until or s.armed_until < timezone.now():
             raise Problem("Arm this station first")
         s.overwrite_uid = p["uid"]
+    elif action == "resume":
+        v = EncodingReservation.objects.get(
+            pk=p["reservation_id"], station=s, state="skipped"
+        )
+        if (
+            v.tag.state != "active"
+            or EncodingReservation.objects.filter(station=s, state="reserved").exists()
+        ):
+            raise Problem(
+                "Resolve the active reservation before resuming an active tag", 409
+            )
+        v.state = "reserved"
+        v.save()
+        v.tag.encoding = "reserved"
+        v.tag.save(update_fields=["encoding"])
     elif action == "skip":
         v = EncodingReservation.objects.get(pk=p["reservation_id"], station=s)
         if v.state == "verified":

@@ -481,17 +481,22 @@ async function batchBody() {
           revision: t.revision,
         })
       ).tag;
-    await navigator.clipboard.writeText(t.url);
+    Object.assign(pending, t);
+    const verifyKey = crypto.randomUUID();
     $("#phone-step").innerHTML =
-      `<h3>${esc(t.code)}</h3><p class="wrap">${esc(t.url)}</p><p>Write this URL, then use the NFC app Read tab to read it back.</p><label>Paste the URL read from the physical sticker<input id="phone-readback" type="url"></label><label class="check"><input id="phone-read-confirm" type="checkbox">I read this URL from the physical sticker</label><label class="check"><input id="phone-print-after" type="checkbox">Queue one matching label after verification</label><button id="phone-verify">Verify and continue</button><button id="phone-skip" class="secondary">Skip this tag for now</button>`;
+      `<h3>${esc(t.code)}</h3><label>URL to write<input id="phone-url" readonly value="${esc(t.url)}"></label><button id="phone-copy-again">Copy URL</button><p>Write this URL, then use the NFC app Read tab to read it back.</p><label>Paste the URL read from the physical sticker<input id="phone-readback" type="url"></label><label class="check"><input id="phone-read-confirm" type="checkbox">I read this URL from the physical sticker</label><label class="check"><input id="phone-print-after" type="checkbox">Queue one matching label after verification</label><button id="phone-verify">Verify and continue</button><button id="phone-skip" class="secondary">Skip this tag for now</button>`;
     $("#phone-verify").onclick = guard(async () => {
       const print = $("#phone-print-after").checked;
-      await api("tags/" + t.token, {
-        action: "phone_verify",
-        revision: t.revision,
-        readback: $("#phone-readback").value.trim(),
-        confirm: $("#phone-read-confirm").checked,
-      });
+      await api(
+        "tags/" + t.token,
+        {
+          action: "phone_verify",
+          revision: t.revision,
+          readback: $("#phone-readback").value.trim(),
+          confirm: $("#phone-read-confirm").checked,
+        },
+        verifyKey,
+      );
       if (print)
         await api(
           "print-jobs",
@@ -501,6 +506,14 @@ async function batchBody() {
       await batchBody();
       notice("Physical readback recorded. Printing has its own queue state.");
     });
+    $("#phone-copy-again").onclick = guard(() =>
+      navigator.clipboard.writeText(t.url),
+    );
+    try {
+      await navigator.clipboard.writeText(t.url);
+    } catch {
+      notice("URL ready. Tap Copy URL or select and copy the URL field.");
+    }
     $("#phone-skip").onclick = guard(async () => {
       await api("tags/" + t.token, {
         action: "phone_skip",
@@ -513,7 +526,7 @@ async function batchBody() {
 async function stationPanel() {
   const rows = (await api("stations")).stations;
   modal(
-    `<h2>Encoding station</h2><p>Writing is armed for five minutes. Verified tags extend the active period. Inspect mode never writes.</p>${me.owner ? '<label>New station name<input id="station-name" value="Packing station"></label><button id="station-create">Create station credential</button>' : ""}<div id="station-secret"></div><div id="station-rows">${rows.map((s) => `<article class="c313-card"><h3>${esc(s.name)}</h3><p>${s.revoked ? "Revoked" : s.armed ? "Armed" : "Disarmed"}</p><p>${esc(s.last_result || "No report yet")}</p><small>Last contact: ${esc(s.last_seen || "Not connected")}</small><label class="check"><input type="checkbox" id="print-after-${s.id}" ${s.print_after ? "checked" : ""}>Print matching label after readback</label><div class="actions"><button data-arm="${s.id}" ${batchId && !s.revoked ? "" : "disabled"}>Arm selected batch</button><button data-disarm="${s.id}">Disarm</button>${me.owner ? `<button data-revoke="${s.id}">Revoke credential</button>` : ""}</div><details><summary>Recovery and deliberate overwrite</summary><label>Inspected UID<input id="uid-${s.id}" placeholder="14 hexadecimal characters"></label><button data-overwrite="${s.id}">Allow this nonblank tag once</button><label>Reservation ID to skip<input id="skip-${s.id}"></label><button data-skip="${s.id}">Skip reserved tag</button></details></article>`).join("")}</div><button id="station-refresh" class="secondary full">Refresh station status</button>`,
+    `<h2>Encoding station</h2><p>Writing is armed for five minutes. Verified tags extend the active period. Inspect mode never writes.</p>${me.owner ? '<label>New station name<input id="station-name" value="Packing station"></label><button id="station-create">Create station credential</button>' : ""}<div id="station-secret"></div><div id="station-rows">${rows.map((s) => `<article class="c313-card"><h3>${esc(s.name)}</h3><p>${s.revoked ? "Revoked" : s.armed ? "Armed" : "Disarmed"}</p><p>${esc(s.last_result || "No report yet")}</p><small>Last contact: ${esc(s.last_seen || "Not connected")}</small><label class="check"><input type="checkbox" id="print-after-${s.id}" ${s.print_after ? "checked" : ""}>Print matching label after readback</label><div class="actions"><button data-arm="${s.id}" ${batchId && !s.revoked ? "" : "disabled"}>Arm selected batch</button><button data-disarm="${s.id}">Disarm</button>${me.owner ? `<button data-revoke="${s.id}">Revoke credential</button>` : ""}</div><details><summary>Recovery and deliberate overwrite</summary><label>Inspected UID<input id="uid-${s.id}" placeholder="14 hexadecimal characters"></label><button data-overwrite="${s.id}">Allow this nonblank tag once</button><label>Reservation<select id="skip-${s.id}">${s.reservations.map((v) => `<option value="${v.id}">${esc(v.code)} · ${esc(v.state)}</option>`).join("")}</select></label><button data-skip="${s.id}">Skip reserved tag</button><button data-resume="${s.id}">Resume skipped tag</button></details></article>`).join("")}</div><button id="station-refresh" class="secondary full">Refresh station status</button>`,
   );
   if (me.owner)
     $("#station-create").onclick = guard(async () => {
@@ -521,13 +534,13 @@ async function stationPanel() {
       $("#station-secret").innerHTML =
         `<p>Save this revocable credential into the station over its USB serial setup. It is shown once.</p><pre>${esc(JSON.stringify({ station_id: out.station.id, credential: out.credential, origin: location.origin }, null, 2))}</pre><p>It grants only station allocation and verification. Keep it out of source files.</p>`;
     });
-  for (const a of ["arm", "disarm", "revoke", "overwrite", "skip"])
+  for (const a of ["arm", "disarm", "revoke", "overwrite", "skip", "resume"])
     document.querySelectorAll("[data-" + a + "]").forEach(
       (b) =>
         (b.onclick = guard(async () => {
           const s = rows.find((x) => x.id === b.dataset[a]);
           if (
-            ["overwrite", "revoke", "skip"].includes(a) &&
+            ["overwrite", "revoke", "skip", "resume"].includes(a) &&
             !confirm("Confirm " + a + " for this station?")
           )
             return;

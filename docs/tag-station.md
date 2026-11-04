@@ -53,7 +53,7 @@ The station requires tag removal before another operation. A tag left in the fie
 
 A successful readback produces two LED pulses if an LED is connected, and the readable code appears in Stash. Optional label printing has a separate job/status and an idempotent reservation key. Verify the printed label against the code before pairing it with the sticker.
 
-After interruption, remove and present the same tag in encode mode. If its URL already matches the retained reservation, firmware acknowledges without rewriting. For an incomplete write, rearm and retry that reservation. Use the station panel to skip an unrecoverable reservation. It stays in the batch manifest; it is never quietly assigned to another physical tag.
+After interruption, remove and present the same tag in encode mode. If its URL already matches the retained reservation, firmware acknowledges without rewriting. For an incomplete write, rearm and retry that reservation. Use the station panel to skip an unrecoverable reservation. It stays in the batch manifest; it is never quietly assigned to another physical tag. The station panel lists recent reservations and can deliberately resume a skipped tag once the current reservation is resolved. Present that same physical tag to keep its original URL.
 
 ## Deliberate outbound OTA
 

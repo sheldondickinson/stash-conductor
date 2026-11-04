@@ -136,6 +136,13 @@ class MovingTests(TestCase):
         export = self.client.get("/api/export").json()
         self.assertIn("locations", export)
         self.assertIn("tags", export)
+        tag = self.batch()[0]
+        self.post(
+            "tags/" + tag["token"], {"revision": 1, "container_id": str(inner.id)}
+        )
+        self.assertEqual(
+            len(self.client.get("/api/items?q=" + tag["code"]).json()["items"]), 1
+        )
 
     def test_station_recovery_and_readback_gate(self):
         tags = self.batch()
@@ -186,7 +193,30 @@ class MovingTests(TestCase):
         self.assertEqual(a.status_code, 200, a.content)
         self.assertEqual(exchange(verify).json(), a.json())
         self.assertEqual(PrintJob.objects.count(), 1)
-        self.assertEqual(exchange({**p, "uid": "04112233445577"}).status_code, 200)
+        second = exchange({**p, "uid": "04112233445577"}).json()
+        station = self.client.get("/api/stations").json()["stations"][0]
+        self.assertTrue(station["reservations"])
+        skipped = self.post(
+            "stations/" + sid,
+            {
+                "action": "skip",
+                "revision": station["revision"],
+                "reservation_id": second["reservation_id"],
+            },
+        ).json()
+        self.assertFalse(exchange({**p, "uid": "04112233445577"}).json()["may_write"])
+        resumed = self.post(
+            "stations/" + sid,
+            {
+                "action": "resume",
+                "revision": skipped["revision"],
+                "reservation_id": second["reservation_id"],
+            },
+        )
+        self.assertEqual(resumed.status_code, 200)
+        recovered = exchange({**p, "uid": "04112233445577"}).json()
+        self.assertEqual(recovered["reservation_id"], second["reservation_id"])
+        self.assertTrue(recovered["may_write"])
         self.assertEqual(
             Client()
             .get("/api/items", HTTP_AUTHORIZATION="Bearer " + token)
