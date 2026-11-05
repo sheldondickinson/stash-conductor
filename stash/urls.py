@@ -29,7 +29,7 @@ def sw(request):
 
 
 urlpatterns = [
-    path("health", lambda r: JsonResponse({"status": "ok", "version": "0.3.1"})),
+    path("health", lambda r: JsonResponse({"status": "ok", "version": "0.3.2"})),
     path("auth/login", auth.signin),
     path("auth/callback", auth.callback),
     path("auth/logout", auth.signout),

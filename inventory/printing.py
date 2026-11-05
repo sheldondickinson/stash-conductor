@@ -13,7 +13,7 @@ from django.conf import settings
 from django.db import transaction
 from django.http import HttpResponse
 from django.utils import timezone
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from .api import Problem, api, owner, revision, text
 from .models import Container, Printer, PrintJob, Tag
@@ -66,7 +66,7 @@ def label_image(label, tape=24):
     pic = qr.make_image(fill_color="black", back_color="white").convert("1")
     width = (
         round(80 * 180 / 25.4) - 28
-    )  # 80 mm finished target, excluding two 2 mm feeds
+    )  # Maximum layout width, excluding two 2 mm feeds. Trim spare length below.
     im = Image.new("1", (width, h), 1)
     im.paste(pic, (0, (h - pic.height) // 2))
     draw = ImageDraw.Draw(im)
@@ -103,7 +103,13 @@ def label_image(label, tape=24):
     footer = label.get("box_code", "")
     footer = footer + " · Stash" if footer else "Stash Conductor"
     draw.text((x, h - 20), footer, font=font(13), fill=0)
-    return im
+    # Remove unused trailing tape without scaling the text or QR. Keep the
+    # complete QR square, including its four module quiet zone, and a small
+    # clear edge after the rightmost printed text. Preview, export and queued
+    # printing all use these same pixels and dimensions.
+    ink = ImageOps.invert(im.convert("L")).getbbox()
+    end = min(width, max(pic.width, ink[2] + 4))
+    return im.crop((0, 0, end, h))
 
 
 def png(label, tape):
