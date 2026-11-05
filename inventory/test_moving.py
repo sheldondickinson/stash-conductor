@@ -294,6 +294,44 @@ class MovingTests(TestCase):
         self.assertIsNotNone(p.last_check)
         self.assertEqual(PrintJob.objects.count(), 1)
 
+    def test_compact_labels_fit_content_and_keep_decodable_qr(self):
+        import xml.etree.ElementTree as ET
+
+        import zxingcpp
+        from PIL import Image, ImageOps
+
+        url = "https://stash.example.com/c/B001"
+        for tape in [18, 24]:
+            short = Image.open(
+                io.BytesIO(png({"code": "B001", "title": "Alice", "url": url}, tape))
+            )
+            self.assertLess(short.width * 25.4 / 180 + 4, 50)
+            for name in ["Alice", "Florence", "Alexandra Elizabeth " * 20, ""]:
+                im = Image.open(
+                    io.BytesIO(png({"code": "B001", "title": name, "url": url}, tape))
+                )
+                self.assertEqual(im.height, 112 if tape == 18 else 128)
+                self.assertLessEqual(im.width * 25.4 / 180 + 4, 81)
+                self.assertEqual(
+                    [r.text for r in zxingcpp.read_barcodes(im.convert("RGB"))], [url]
+                )
+                # The cutter edge must not run through the rendered text.
+                self.assertGreaterEqual(
+                    im.width - ImageOps.invert(im.convert("L")).getbbox()[2], 3
+                )
+
+        box = Container.objects.create(code="B001", name="Alice")
+        query = {"ref": "box:" + str(box.pk)}
+        raster = Image.open(
+            io.BytesIO(self.client.get("/api/label-preview", query).content)
+        )
+        svg = ET.fromstring(
+            self.client.get("/api/label-preview", {**query, "format": "svg"}).content
+        )
+        self.assertAlmostEqual(
+            float(svg.attrib["width"].removesuffix("mm")), raster.width * 25.4 / 180 + 4
+        )
+
     def test_member_can_pack_but_not_provision_printer_or_station(self):
         c = Client()
         c.force_login(User.objects.create_user("member"))
