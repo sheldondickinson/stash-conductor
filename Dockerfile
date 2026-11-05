@@ -1,8 +1,11 @@
 FROM golang:1.27.3-bookworm AS printer-build
+ENV GOMAXPROCS=1 GOFLAGS=-p=1
 WORKDIR /bridge
 COPY integrations/ptouch/go.mod integrations/ptouch/go.sum ./
 RUN go mod download
 COPY integrations/ptouch/main.go ./
+COPY integrations/ptouch/main_test.go ./
+RUN go test ./...
 RUN CGO_ENABLED=0 go build -trimpath -o /stash-print-bridge .
 
 FROM python:3.12-slim@sha256:05cda9777409a9c3ffddd94a4c476b79f0769a0b4857f0c7ed9226b6800b0d6f

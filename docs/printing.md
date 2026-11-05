@@ -35,3 +35,11 @@ The `ptouch-print-server` AirPrint project explicitly lists PT-P750W as recognis
 Sources: [Brother raster reference](https://download.brother.com/welcome/docp100064/cv_pte550wp750wp710bt_eng_raster_102.pdf), [selected library](https://github.com/crmin/ptouch-go), [AirPrint project limits](https://github.com/pfa230/ptouch-print-server), [Brother model and b-PAC support](https://support.brother.com/g/b/faqend.aspx?c=us&faqid=faqp00001521_000&lang=en&prod=p750weus).
 
 For ordinary paper, use [bulk boxes and A4 labels](paper-labels.md). This workflow does not depend on printer commissioning.
+
+## Live queue and status errors
+
+The queue refreshes every two seconds while its dialog is visible. Updates preserve unsaved tape settings and stop when the dialog closes. A connection failure is shown as a paused update, rather than leaving an old queued state without explanation.
+
+The worker processes normal jobs and deliberate reprints through the same path. A reported preflight error with zero bytes sent is failed, not outcome unknown. Any error after bytes were sent remains uncertain and is never automatically retried. Unknown device error codes remain visible even when the library cannot name them; they are not treated as healthy. The latest device observation from a job updates the printer panel.
+
+The bridge spaces SNMP requests by at least 500 ms. The pinned library otherwise polls without a delay. This limits device load without changing the raster encoder or treating one idle snapshot as proof of completion. The PT-P750W reference marks some error bits unused, so a reported unrecognised code is preserved rather than assigned a guessed meaning: [Brother raster reference](https://download.brother.com/welcome/docp100064/cv_pte550wp750wp710bt_eng_raster_102.pdf).

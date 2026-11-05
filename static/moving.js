@@ -601,7 +601,7 @@ async function printLabels(refs) {
 async function printerPanel() {
   const [p, q] = await Promise.all([api("printer"), api("print-jobs")]);
   modal(
-    `<h2>Brother PT-P750W</h2><p>${p.configured ? "Private printer connection configured" : "Printer connection awaits commissioning"}</p><p>24 mm is the maximum tape width. The print head is 128 dots, about 18 mm high.</p><div class="actions"><button id="printer-check">Check connection and cassette</button><button id="printer-test">Preview test label</button><button id="queue-refresh" class="secondary">Refresh</button></div><p role="status">${esc(p.status.detail || (p.status.status?.Status ? "Reported tape: " + p.status.status.Status.MediaWidthMM + " mm. " + (p.status.status.Status.Errors?.length ? p.status.status.Status.Errors.join(", ").replaceAll("-", " ") : "No device error reported.") : "Connection and cassette have not been checked."))}</p>${
+    `<h2>Brother PT-P750W</h2><p>${p.configured ? "Private printer connection configured" : "Printer connection awaits commissioning"}</p><p>24 mm is the maximum tape width. The print head is 128 dots, about 18 mm high.</p><div class="actions"><button id="printer-check">Check connection and cassette</button><button id="printer-test">Preview test label</button><button id="queue-refresh" class="secondary">Refresh</button></div><p id="printer-status" role="status">${esc(p.status.detail || (p.status.status?.Status ? "Reported tape: " + p.status.status.Status.MediaWidthMM + " mm. " + (p.status.status.Status.Errors?.length ? p.status.status.Status.Errors.join(", ").replaceAll("-", " ") : "No device error reported.") : "Connection and cassette have not been checked."))}</p>${
       me.owner
         ? `<form id="printer-settings"><label>TZe tape width<select name="tape_mm"><option value="24" ${p.tape_mm === 24 ? "selected" : ""}>24 mm</option><option value="18" ${p.tape_mm === 18 ? "selected" : ""}>18 mm</option></select></label><label>Cut option<select name="finishing">${[
             ["single-full", "Cut each label"],
@@ -616,7 +616,7 @@ async function printerPanel() {
               "",
             )}</select></label><button>Save tape settings</button></form>`
         : ""
-    }<h3>Print queue</h3><p>Queued jobs can be cancelled. Sending cannot reliably be cancelled. An uncertain job is never automatically printed again.</p>${q.jobs.map((j) => `<article class="c313-card"><h3>${j.labels.map((x) => esc(x.code)).join(", ")}</h3><p><strong>${esc(j.state.replaceAll("_", " "))}</strong></p><p>${esc(j.detail)}</p><small>${esc(j.created)}</small><div class="actions">${["queued", "held"].includes(j.state) ? `<button data-job="${j.id}" data-action="cancel">Cancel</button>` : ""}${j.state === "held" ? `<button data-job="${j.id}" data-action="resume">Resume</button>` : ""}${["sent_unconfirmed", "outcome_unknown"].includes(j.state) ? `<button data-job="${j.id}" data-action="confirm">I checked all labels</button>` : ""}${!["queued", "sending", "held"].includes(j.state) ? `<button data-job="${j.id}" data-action="reprint">Reprint deliberately</button>` : ""}</div></article>`).join("") || "<p>No jobs yet.</p>"}`,
+    }<h3>Print queue</h3><p>Queued jobs can be cancelled. Sending cannot reliably be cancelled. An uncertain job is never automatically printed again.</p><p id="queue-live" role="status">Queue updates automatically.</p><div id="printer-jobs"></div>}`,
   );
   $("#printer-check").onclick = guard(async () => {
     await api("printer", { action: "check" });
@@ -632,25 +632,79 @@ async function printerPanel() {
       await api("printer", { ...d, revision: p.revision });
       await printerPanel();
     });
-  document.querySelectorAll("[data-job]").forEach(
-    (b) =>
-      (b.onclick = guard(async () => {
-        if (
-          ["reprint", "confirm"].includes(b.dataset.action) &&
-          !confirm(
-            b.dataset.action === "reprint"
-              ? "Inspect the printer first. Print another physical copy?"
-              : "Have you inspected every physical label in this job?",
-          )
-        )
-          return;
-        await api("print-jobs/" + b.dataset.job, {
-          action: b.dataset.action,
-          confirm: true,
-        });
-        await printerPanel();
-      })),
-  );
+  const region = $("#printer-jobs"),
+    dialog = $("#dialog");
+  let busy = false,
+    acting = false,
+    lastRows = "";
+  const showJobs = (q) => {
+    const serialised = JSON.stringify(q.jobs);
+    if (serialised === lastRows) return;
+    lastRows = serialised;
+    const focused = region.contains(document.activeElement)
+      ? document.activeElement.dataset
+      : null;
+    region.innerHTML = `${q.jobs.map((j) => `<article class="c313-card"><h3>${j.labels.map((x) => esc(x.code)).join(", ")}</h3><p><strong>${esc(j.state.replaceAll("_", " "))}</strong></p><p>${esc(j.detail)}</p><small>${esc(j.created)}</small><div class="actions">${["queued", "held"].includes(j.state) ? `<button data-job="${j.id}" data-action="cancel">Cancel</button>` : ""}${j.state === "held" ? `<button data-job="${j.id}" data-action="resume">Resume</button>` : ""}${["sent_unconfirmed", "outcome_unknown"].includes(j.state) ? `<button data-job="${j.id}" data-action="confirm">I checked all labels</button>` : ""}${!["queued", "sending", "held"].includes(j.state) ? `<button data-job="${j.id}" data-action="reprint">Reprint deliberately</button>` : ""}</div></article>`).join("") || "<p>No jobs yet.</p>"}`;
+    if (focused?.job) {
+      const button = [...region.querySelectorAll("[data-job]")].find(
+        (b) =>
+          b.dataset.job === focused.job && b.dataset.action === focused.action,
+      );
+      button?.focus({ preventScroll: true });
+    }
+  };
+  showJobs(q);
+  region.onclick = guard(async (event) => {
+    const b = event.target.closest("[data-job]");
+    if (!b || acting) return;
+    if (
+      ["reprint", "confirm"].includes(b.dataset.action) &&
+      !confirm(
+        b.dataset.action === "reprint"
+          ? "Inspect the printer first. Print another physical copy?"
+          : "Have you inspected every physical label in this job?",
+      )
+    )
+      return;
+    acting = true;
+    b.disabled = true;
+    try {
+      await api("print-jobs/" + b.dataset.job, {
+        action: b.dataset.action,
+        confirm: true,
+      });
+      await printerPanel();
+    } finally {
+      acting = false;
+      if (b.isConnected) b.disabled = false;
+    }
+  });
+  const timer = setInterval(async () => {
+    if (!dialog.open || !region.isConnected) {
+      clearInterval(timer);
+      return;
+    }
+    if (busy || acting || document.hidden) return;
+    busy = true;
+    try {
+      const [latest, printer] = await Promise.all([
+        api("print-jobs"),
+        api("printer"),
+      ]);
+      if (!dialog.open || !region.isConnected || acting) return;
+      showJobs(latest);
+      if (printer.status.detail)
+        $("#printer-status").textContent = printer.status.detail;
+      $("#queue-live").textContent =
+        "Queue updated " + new Date().toLocaleTimeString("en-AU") + ".";
+    } catch (e) {
+      if (region.isConnected)
+        $("#queue-live").textContent = "Queue updates paused. " + e.message;
+      if ([401, 403, 409].includes(e.status)) clearInterval(timer);
+    } finally {
+      busy = false;
+    }
+  }, 2000);
 }
 async function locationsPanel() {
   places = (await api("locations")).locations;
