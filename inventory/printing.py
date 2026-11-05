@@ -359,4 +359,13 @@ def work_once():
             j.detail = result.get("detail", "")[:500]
             j.result = result.get("result", {})
             j.save()
+            if result.get("status"):
+                p, _ = Printer.objects.get_or_create(pk=1)
+                p.status = {
+                    "state": "observed",
+                    "status": result["status"],
+                    "detail": result.get("status_detail", ""),
+                }
+                p.last_check = timezone.now()
+                p.save(update_fields=["status", "last_check"])
         return True

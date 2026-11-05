@@ -271,6 +271,29 @@ class MovingTests(TestCase):
             decoded = zxingcpp.read_barcodes(im.convert("RGB"))
             self.assertEqual([d.text for d in decoded], [url])
 
+    def test_normal_queue_processes_without_reprint_and_saves_device_status(self):
+        from .models import Printer
+
+        out = self.post("print-jobs", {"refs": ["test"], "copies": 1}).json()
+        observed = {"Status": {"MediaWidthMM": 24, "Type": "error", "ErrorInfo2": 4}}
+        with patch(
+            "inventory.printing.bridge",
+            return_value={
+                "state": "failed",
+                "detail": "No print data sent. Unrecognised error 00/04.",
+                "status": observed,
+                "status_detail": "Unrecognised printer error 00/04.",
+            },
+        ) as bridge_mock:
+            self.assertTrue(work_once())
+            self.assertFalse(work_once())
+            self.assertEqual(bridge_mock.call_count, 1)
+        self.assertEqual(PrintJob.objects.get(pk=out["id"]).state, "failed")
+        p = Printer.objects.get(pk=1)
+        self.assertEqual(p.status["status"], observed)
+        self.assertIsNotNone(p.last_check)
+        self.assertEqual(PrintJob.objects.count(), 1)
+
     def test_member_can_pack_but_not_provision_printer_or_station(self):
         c = Client()
         c.force_login(User.objects.create_user("member"))
