@@ -1,4 +1,5 @@
 FROM golang:1.27.3-bookworm AS printer-build
+ENV GOMAXPROCS=1 GOFLAGS=-p=1
 WORKDIR /bridge
 COPY integrations/ptouch/go.mod integrations/ptouch/go.sum ./
 RUN go mod download
